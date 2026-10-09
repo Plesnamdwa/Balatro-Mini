@@ -39,6 +39,7 @@ public:
     static void drawRect(float x, float y, float w, float h, Color color);
     static void drawRectOutline(float x, float y, float w, float h, float thickness, Color color);
     static void drawText(const string& text, float x, float y, float scale, Color color);
+    static void drawTextInverted(const string& text, float rightX, float bottomY, float scale, Color color);
 
     // Helper Tipografi
     static float getTextWidth(const string& text, float scale);
@@ -47,6 +48,7 @@ public:
     // Komponen Game Balatro
     static void drawCard(const Card& card, float x, float y, float w, float h, bool isHovered, float elevation = 0.0f);
     static void drawSuitIcon(Suit suit, float x, float y, float size, Color color);
+    static void drawSuitIconInverted(Suit suit, float rightX, float bottomY, float size, Color color);
     static void drawButton(const string& text, float x, float y, float w, float h, 
                            Color bg, Color textCol, bool isHovered, bool isEnabled);
     static void drawToast(const string& message, float windowW, float windowH, float alpha);

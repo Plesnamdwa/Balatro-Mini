@@ -231,6 +231,35 @@ void Renderer::drawText(const string& text, float x, float y, float scale, Color
     glEnd();
 }
 
+void Renderer::drawTextInverted(const string& text, float rightX, float bottomY, float scale, Color color) {
+    glColor4f(color.r, color.g, color.b, color.a);
+    glBegin(GL_QUADS);
+    float curRight = rightX;
+    // Iterate string in normal order, but each glyph rendered upside-down and right-to-left
+    for (char c : text) {
+        unsigned char uChar = static_cast<unsigned char>(c);
+        if (uChar > 127) uChar = '?';
+        const unsigned char* glyph = PixelFont::FONT_DATA[uChar];
+
+        for (int row = 0; row < 8; ++row) {
+            unsigned char rowBits = glyph[row];
+            for (int col = 0; col < 8; ++col) {
+                if (rowBits & (0x80 >> col)) {
+                    // Rotated 180 degrees: col -> (7 - col), row -> (7 - row)
+                    float px = curRight - (8 - (7 - col)) * scale;
+                    float py = bottomY - (8 - (7 - row)) * scale;
+                    glVertex2f(px, py);
+                    glVertex2f(px + scale, py);
+                    glVertex2f(px + scale, py + scale);
+                    glVertex2f(px, py + scale);
+                }
+            }
+        }
+        curRight -= 8.0f * scale;
+    }
+    glEnd();
+}
+
 float Renderer::getTextWidth(const string& text, float scale) {
     return static_cast<float>(text.length()) * 8.0f * scale;
 }
@@ -310,6 +339,35 @@ void Renderer::drawSuitIcon(Suit suit, float x, float y, float size, Color color
     glEnd();
 }
 
+void Renderer::drawSuitIconInverted(Suit suit, float rightX, float bottomY, float size, Color color) {
+    const char* const* map = nullptr;
+    switch (suit) {
+        case Suit::HEARTS:   map = SUIT_HEARTS; break;
+        case Suit::DIAMONDS: map = SUIT_DIAMONDS; break;
+        case Suit::SPADES:   map = SUIT_SPADES; break;
+        case Suit::CLUBS:    map = SUIT_CLUBS; break;
+    }
+    if (!map) return;
+
+    float pixelSize = size / 11.0f;
+    glColor4f(color.r, color.g, color.b, color.a);
+    glBegin(GL_QUADS);
+    for (int r = 0; r < 11; ++r) {
+        for (int c = 0; c < 11; ++c) {
+            if (map[r][c] == 'X') {
+                // Rotated 180 degrees: col -> (10 - c), row -> (10 - r)
+                float px = rightX - (11 - (10 - c)) * pixelSize;
+                float py = bottomY - (11 - (10 - r)) * pixelSize;
+                glVertex2f(px, py);
+                glVertex2f(px + pixelSize, py);
+                glVertex2f(px + pixelSize, py + pixelSize);
+                glVertex2f(px, py + pixelSize);
+            }
+        }
+    }
+    glEnd();
+}
+
 void Renderer::drawAceEmblem(float boxX, float boxY, float boxW, float boxH, Suit suit, bool debuffed) {
     Color suitCol = debuffed ? Theme::DEBUFF_GRAY : 
                     ((suit == Suit::HEARTS || suit == Suit::DIAMONDS) ? Theme::MULT_RED : Theme::TEXT_DARK);
@@ -376,9 +434,6 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
     drawText(rankStr, x + 8.0f, renderY + 7.0f, 2.0f, suitColor);
     drawSuitIcon(card.getSuit(), x + 9.0f, renderY + 26.0f, 13.0f, suitColor);
 
-    // Pojok Kanan Atas: Mini Pixel Art Suit Icon
-    drawSuitIcon(card.getSuit(), x + w - 21.0f, renderY + 8.0f, 12.0f, suitColor);
-
     // 6. Area Tengah: Pixel Art Face Cards vs Grand Ace vs Number Cards
     Rank rank = card.getRank();
     if (rank == Rank::JACK || rank == Rank::QUEEN || rank == Rank::KING) {
@@ -427,9 +482,9 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
         drawSuitIcon(card.getSuit(), boxX + (boxW - iconSize) * 0.5f, boxY + (boxH - iconSize) * 0.5f, iconSize, suitColor);
     }
 
-    // 7. Base Chips Pojok Kanan Bawah
-    string chipStr = "+" + to_string(card.getBaseChips());
-    drawText(chipStr, x + w - 38.0f, renderY + h - 22.0f, 1.5f, Theme::CHIPS_BLUE);
+    // 7. Pojok Kanan Bawah: Inverted Suit Icon & Rank (Balatro Playing Card Style)
+    drawSuitIconInverted(card.getSuit(), x + w - 9.0f, renderY + h - 26.0f, 13.0f, suitColor);
+    drawTextInverted(rankStr, x + w - 8.0f, renderY + h - 7.0f, 2.0f, suitColor);
 
     // 8. Label DEBUFF jika aktif
     if (card.isDebuffed()) {
