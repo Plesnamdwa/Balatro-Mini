@@ -6,7 +6,16 @@
 #include "Renderer.h"
 #include <string>
 
+#include <vector>
+
 using namespace std;
+
+struct CardAnim {
+    float x = 0.0f;
+    float y = 530.0f;
+    float elevation = 0.0f;
+    bool initialized = false;
+};
 
 class GameWindow {
 private:
@@ -15,6 +24,9 @@ private:
     int windowHeight;
     string windowTitle;
     GameEngine engine;
+
+    // State Animasi Kartu yang Mulus (Lerp & Hover Physics)
+    vector<CardAnim> cardAnims;
 
     // State Toast Notification (Error / Warning feedback)
     string toastMessage;
@@ -25,7 +37,8 @@ private:
     double mouseY;
 
     void processInput();
-    void renderUI();
+    void updateCardAnimations(float dt);
+    void renderUI(float dt);
 
     // Layar Menu Utama (Title Screen)
     void renderMainMenu();
@@ -43,7 +56,7 @@ private:
     bool isPointInRect(float px, float py, float rx, float ry, float rw, float rh) const;
 
 public:
-    GameWindow(int width = 1024, int height = 720, const string& title = "Balatro Mini - Low Fidelity");
+    GameWindow(int width = 1024, int height = 720, const string& title = "Balatro Mini");
     ~GameWindow();
 
     bool init();

@@ -128,8 +128,8 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
         float baseY = 530.0f;
 
         for (size_t i = 0; i < hand.size(); ++i) {
-            float cx = startX + i * (cardW + spacing);
-            float cy = hand[i].isSelected() ? baseY - 28.0f : baseY;
+            float cx = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].x : (startX + i * (cardW + spacing));
+            float cy = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].y : baseY;
 
             if (isPointInRect(mx, my, cx, cy, cardW, cardH)) {
                 try {
@@ -521,6 +521,45 @@ void GameWindow::renderControls() {
     Renderer::drawButton("DISCARD", 580.0f, 440.0f, 140.0f, 48.0f, Theme::MULT_RED, Theme::TEXT_WHITE, hoverDiscard, canDiscard);
 }
 
+void GameWindow::updateCardAnimations(float dt) {
+    const auto& hand = engine.getHand();
+    if (cardAnims.size() != hand.size()) {
+        cardAnims.resize(hand.size());
+    }
+
+    float cardW = 88.0f;
+    float cardH = 130.0f;
+    float startX = 55.0f;
+    float spacing = 28.0f;
+    float baseY = 530.0f;
+
+    float mx = static_cast<float>(mouseX);
+    float my = static_cast<float>(mouseY);
+
+    for (size_t i = 0; i < hand.size(); ++i) {
+        float targetX = startX + i * (cardW + spacing);
+
+        float curX = cardAnims[i].initialized ? cardAnims[i].x : targetX;
+        float curY = cardAnims[i].initialized ? cardAnims[i].y : baseY;
+        bool isHovered = isPointInRect(mx, my, curX, curY, cardW, cardH);
+
+        float targetElev = hand[i].isSelected() ? 1.0f : (isHovered ? 0.35f : 0.0f);
+        float targetY = baseY - targetElev * 32.0f;
+
+        if (!cardAnims[i].initialized) {
+            cardAnims[i].x = targetX;
+            cardAnims[i].y = targetY;
+            cardAnims[i].elevation = targetElev;
+            cardAnims[i].initialized = true;
+        } else {
+            float speed = min(1.0f, 18.0f * dt);
+            cardAnims[i].x += (targetX - cardAnims[i].x) * speed;
+            cardAnims[i].y += (targetY - cardAnims[i].y) * speed;
+            cardAnims[i].elevation += (targetElev - cardAnims[i].elevation) * speed;
+        }
+    }
+}
+
 void GameWindow::renderCards() {
     const auto& hand = engine.getHand();
     float cardW = 88.0f;
@@ -533,11 +572,13 @@ void GameWindow::renderCards() {
     float my = static_cast<float>(mouseY);
 
     for (size_t i = 0; i < hand.size(); ++i) {
-        float cx = startX + i * (cardW + spacing);
-        float cy = hand[i].isSelected() ? baseY - 28.0f : baseY;
+        float cx = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].x : (startX + i * (cardW + spacing));
+        float cy = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].y : baseY;
+        float elev = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].elevation : (hand[i].isSelected() ? 1.0f : 0.0f);
+
         bool isHovered = isPointInRect(mx, my, cx, cy, cardW, cardH);
 
-        Renderer::drawCard(hand[i], cx, baseY, cardW, cardH, isHovered);
+        Renderer::drawCard(hand[i], cx, cy, cardW, cardH, isHovered, elev);
 
         string keyNum = "[" + to_string(i + 1) + "]";
         Renderer::drawText(keyNum, cx + (cardW / 2.0f) - 10.0f, baseY + cardH + 12.0f, 1.1f, Color(0.6f, 0.7f, 0.65f, 0.8f));
@@ -551,9 +592,13 @@ void GameWindow::renderRoundGameplay() {
     renderCards();
 }
 
-void GameWindow::renderUI() {
-    glClearColor(Theme::BG_GREEN.r, Theme::BG_GREEN.g, Theme::BG_GREEN.b, 1.0f);
+void GameWindow::renderUI(float dt) {
+    glClearColor(0.06f, 0.14f, 0.11f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    // Dynamic Hypnotic Felt Swirl Background khas Balatro
+    float time = static_cast<float>(glfwGetTime());
+    Renderer::drawAnimatedBackground(static_cast<float>(windowWidth), static_cast<float>(windowHeight), time);
 
     string state = engine.getCurrentStateName();
 
@@ -562,6 +607,7 @@ void GameWindow::renderUI() {
     } else if (state == "BLIND_SELECT") {
         renderBlindSelect();
     } else {
+        updateCardAnimations(dt);
         renderRoundGameplay();
     }
 
@@ -578,6 +624,7 @@ void GameWindow::run() {
         double currentTime = glfwGetTime();
         float dt = static_cast<float>(currentTime - lastTime);
         lastTime = currentTime;
+        if (dt > 0.1f) dt = 0.1f;
 
         if (toastTimer > 0.0f) {
             toastTimer -= dt;
@@ -586,7 +633,7 @@ void GameWindow::run() {
 
         glfwGetCursorPos(window, &mouseX, &mouseY);
 
-        renderUI();
+        renderUI(dt);
 
         glfwSwapBuffers(window);
         glfwPollEvents();

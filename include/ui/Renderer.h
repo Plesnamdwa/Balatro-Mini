@@ -32,6 +32,9 @@ public:
     static void initGL(int windowWidth, int windowHeight);
     static void updateViewport(int windowWidth, int windowHeight);
 
+    // Latar Belakang Animasi & Efek CRT
+    static void drawAnimatedBackground(float windowW, float windowH, float time);
+
     // Primitif 2D
     static void drawRect(float x, float y, float w, float h, Color color);
     static void drawRectOutline(float x, float y, float w, float h, float thickness, Color color);
@@ -42,10 +45,16 @@ public:
     static void drawCenteredText(const string& text, float centerX, float y, float scale, Color color);
 
     // Komponen Game Balatro
-    static void drawCard(const Card& card, float x, float y, float w, float h, bool isHovered);
+    static void drawCard(const Card& card, float x, float y, float w, float h, bool isHovered, float elevation = 0.0f);
     static void drawButton(const string& text, float x, float y, float w, float h, 
                            Color bg, Color textCol, bool isHovered, bool isEnabled);
     static void drawToast(const string& message, float windowW, float windowH, float alpha);
+
+private:
+    static void drawPixelArtGrid(float startX, float startY, float pixelSize,
+                                const char* const grid[], int rows, int cols,
+                                Suit suit, bool debuffed);
+    static void drawAceEmblem(float boxX, float boxY, float boxW, float boxH, Suit suit, bool debuffed);
 };
 
 #endif // RENDERER_H
