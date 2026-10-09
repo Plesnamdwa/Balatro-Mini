@@ -1,0 +1,18 @@
+# Executables & Binaries
+*.exe
+bin/
+tests/*.exe
+
+# Release Archives
+*.zip
+release_package/
+release_staging/
+
+# Temporary / Scratch
+temp_copy.exe
+*.o
+*.obj
+
+# OS generated
+Thumbs.db
+.DS_Store

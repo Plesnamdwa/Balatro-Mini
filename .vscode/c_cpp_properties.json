@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "name": "MinGW-w64",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/include/**",
+        "C:/VSCode/Runner/MinGW/include",
+        "D:/OpenGL/glfw-3.5.1.bin.WIN64/glfw-3.5.1.bin.WIN64/include",
+        "D:/OpenGL/glad/include"
+      ],
+      "defines": [
+        "_DEBUG",
+        "UNICODE",
+        "_UNICODE"
+      ],
+      "compilerPath": "C:/VSCode/Runner/MinGW/bin/g++.exe",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "windows-gcc-x64"
+    }
+  ],
+  "version": 4
+}
