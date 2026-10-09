@@ -48,17 +48,17 @@ static const char* QUEEN_PIXELS[16] = {
 };
 
 static const char* KING_PIXELS[16] = {
-    "...GG.GG......",
-    "..GGRGGGRG....",
+    "..G.GG.G......",
+    ".GGRGGGRGG....",
     "..GGGGGGGG....",
-    ".HHGGGGGSHH...",
+    ".HHGGGGGGHH...",
     "HHSSSSSSSHH...",
     "HHSBSSBSHHH...",
     "HHSSSSSSSHH...",
-    "HHHBBBBBHHH...",
+    "HHHSBBBSHHH...",
     ".HHBBBBBBHH...",
-    "..WBBBBBWW....",
-    ".WWBWWWBWWB...",
+    "..WBBBBBBW....",
+    ".WWBBBBBBWW...",
     "BGRRCCCCRRGB..",
     "BGRRCCCCRRGB..",
     "BGRRCCCCRRGB..",
@@ -429,25 +429,20 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
         suitColor = Theme::TEXT_DARK;
     }
 
-    // 5. Pojok Kiri Atas: Rank & Pixel Art Suit Icon
-    string rankStr = card.getRankString();
-    drawText(rankStr, x + 8.0f, renderY + 7.0f, 2.0f, suitColor);
-    drawSuitIcon(card.getSuit(), x + 9.0f, renderY + 26.0f, 13.0f, suitColor);
-
-    // 6. Area Tengah: Pixel Art Face Cards vs Grand Ace vs Number Cards
+    // 5. Area Tengah: Pixel Art Face Cards vs Grand Ace vs Number Cards
     Rank rank = card.getRank();
     if (rank == Rank::JACK || rank == Rank::QUEEN || rank == Rank::KING) {
-        float boxW = 54.0f;
-        float boxH = 68.0f;
+        float boxW = 50.0f;
+        float boxH = 66.0f;
         float boxX = x + (w - boxW) * 0.5f;
-        float boxY = renderY + 26.0f;
+        float boxY = renderY + 32.0f;
 
         // Bingkai potret kerajaan
         drawRect(boxX, boxY, boxW, boxH, Color(0.92f, 0.90f, 0.85f));
         drawRectOutline(boxX, boxY, boxW, boxH, 1.5f, Color(0.72f, 0.67f, 0.55f));
 
         float gridStartX = boxX + (boxW - 42.0f) * 0.5f;
-        float gridStartY = boxY + (boxH - 48.0f) * 0.5f;
+        float gridStartY = boxY + (boxH - 48.0f) * 0.5f - 2.0f;
 
         if (rank == Rank::JACK) {
             drawPixelArtGrid(gridStartX, gridStartY, 3.0f, JACK_PIXELS, 16, 14, card.getSuit(), card.isDebuffed());
@@ -460,31 +455,36 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
         // Mini suit icon aksen di bawah potret kerajaan
         drawSuitIcon(card.getSuit(), boxX + (boxW - 10.0f) * 0.5f, boxY + boxH - 12.0f, 10.0f, suitColor);
     } else if (rank == Rank::ACE) {
-        float boxW = 54.0f;
-        float boxH = 68.0f;
+        float boxW = 50.0f;
+        float boxH = 66.0f;
         float boxX = x + (w - boxW) * 0.5f;
-        float boxY = renderY + 26.0f;
+        float boxY = renderY + 32.0f;
 
         drawRect(boxX, boxY, boxW, boxH, Color(0.94f, 0.92f, 0.88f));
         drawRectOutline(boxX, boxY, boxW, boxH, 1.5f, Color(0.78f, 0.72f, 0.55f));
         drawAceEmblem(boxX, boxY, boxW, boxH, card.getSuit(), card.isDebuffed());
     } else {
         // Kartu Angka (2 - 10): Pixel Art Suit Icon Besar di Tengah
-        float boxW = 46.0f;
-        float boxH = 58.0f;
+        float boxW = 44.0f;
+        float boxH = 56.0f;
         float boxX = x + (w - boxW) * 0.5f;
-        float boxY = renderY + 30.0f;
+        float boxY = renderY + 37.0f;
 
         drawRect(boxX, boxY, boxW, boxH, Color(0.93f, 0.92f, 0.88f, 0.6f));
         drawRectOutline(boxX, boxY, boxW, boxH, 1.0f, Color(0.80f, 0.78f, 0.74f, 0.8f));
 
-        float iconSize = 34.0f;
+        float iconSize = 30.0f;
         drawSuitIcon(card.getSuit(), boxX + (boxW - iconSize) * 0.5f, boxY + (boxH - iconSize) * 0.5f, iconSize, suitColor);
     }
 
-    // 7. Pojok Kanan Bawah: Inverted Suit Icon & Rank (Balatro Playing Card Style)
-    drawSuitIconInverted(card.getSuit(), x + w - 9.0f, renderY + h - 26.0f, 13.0f, suitColor);
-    drawTextInverted(rankStr, x + w - 8.0f, renderY + h - 7.0f, 2.0f, suitColor);
+    // 6. Pojok Kiri Atas: Rank & Pixel Art Suit Icon (Hierarki di atas frame, posisi dinaikkan)
+    string rankStr = card.getRankString();
+    drawText(rankStr, x + 6.0f, renderY + 5.0f, 1.9f, suitColor);
+    drawSuitIcon(card.getSuit(), x + 7.0f, renderY + 22.0f, 12.0f, suitColor);
+
+    // 7. Pojok Kanan Bawah: Inverted Suit Icon & Rank (Hierarki di atas frame, posisi dinaikkan)
+    drawSuitIconInverted(card.getSuit(), x + w - 7.0f, renderY + h - 22.0f, 12.0f, suitColor);
+    drawTextInverted(rankStr, x + w - 6.0f, renderY + h - 5.0f, 1.9f, suitColor);
 
     // 8. Label DEBUFF jika aktif
     if (card.isDebuffed()) {
