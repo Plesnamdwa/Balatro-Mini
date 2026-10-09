@@ -29,7 +29,10 @@ GameWindow::GameWindow(int width, int height, const string& title)
       scoringStep(ScoringStep::IDLE), scoringTimer(0.0f), animSpeedMultiplier(1.0f),
       currentTriggerIndex(0), animChips(0), animMult(0), animFinalScore(0),
       chipsBoxScale(1.0f), multBoxScale(1.0f), displayedRoundScore(0),
-      targetRoundScore(0), cameraShake(0.0f), toastTimer(0.0f), mouseX(0), mouseY(0) {}
+      targetRoundScore(0), cameraShake(0.0f),
+      isDiscarding(false), discardTimer(0.0f),
+      hoveredCardIndex(-1), hoverTooltipAlpha(0.0f),
+      toastTimer(0.0f), mouseX(0), mouseY(0) {}
 
 GameWindow::~GameWindow() {
     if (window) {
@@ -163,11 +166,7 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
 
         // Tombol DISCARD (x: 580, y: 440, w: 140, h: 48)
         if (isPointInRect(mx, my, 580.0f, 440.0f, 140.0f, 48.0f)) {
-            try {
-                engine.discard();
-            } catch (const GameException& e) {
-                showToast(e.what());
-            }
+            startDiscardSequence();
             return;
         }
         return;
@@ -242,7 +241,7 @@ void GameWindow::handleKey(int key, int /*scancode*/, int action, int /*mods*/) 
         }
     } else if (key == GLFW_KEY_D) {
         if (state == "SELECTING_CARDS") {
-            try { engine.discard(); } catch (const GameException& e) { showToast(e.what()); }
+            startDiscardSequence();
         }
     } else if (key == GLFW_KEY_R) {
         engine.startNewRun();
@@ -685,9 +684,22 @@ void GameWindow::updateScoringSequence(float dt) {
         }
 
         if (scoringTimer >= 0.55f && displayedRoundScore >= targetRoundScore) {
-            scoringStep = ScoringStep::FINISHED;
+            scoringStep = ScoringStep::SLIDE_OUT;
+            scoringTimer = 0.0f;
+            for (auto& ac : scoringAnimatedCards) {
+                ac.targetX = static_cast<float>(windowWidth) + 180.0f; // Meluncur ke kanan ke luar layar!
+            }
         }
     } 
+    else if (scoringStep == ScoringStep::SLIDE_OUT) {
+        for (auto& ac : scoringAnimatedCards) {
+            ac.currentX += (ac.targetX - ac.currentX) * min(1.0f, 15.0f * effectiveDt);
+        }
+
+        if (scoringTimer >= 0.35f) {
+            scoringStep = ScoringStep::FINISHED;
+        }
+    }
     else if (scoringStep == ScoringStep::FINISHED) {
         try {
             engine.playHand();
@@ -866,6 +878,59 @@ void GameWindow::renderControls() {
     Renderer::drawButton("DISCARD", 580.0f, 440.0f, 140.0f, 48.0f, Theme::MULT_RED, Theme::TEXT_WHITE, hoverDiscard, canDiscard);
 }
 
+void GameWindow::startDiscardSequence() {
+    if (scoringStep != ScoringStep::IDLE || isDiscarding) return;
+
+    vector<Card> selected = engine.getSelectedCards();
+    if (selected.empty()) {
+        showToast("Select 1 to 5 cards to discard!");
+        return;
+    }
+    if (selected.size() > 5) {
+        showToast("Maximum 5 cards can be discarded!");
+        return;
+    }
+    if (engine.getDiscardsRemaining() <= 0) {
+        showToast("No discards remaining!");
+        return;
+    }
+
+    discardAnimatedCards.clear();
+    const auto& hand = engine.getHand();
+    for (size_t i = 0; i < hand.size(); ++i) {
+        if (hand[i].isSelected()) {
+            AnimatedCard ac(hand[i]);
+            ac.currentX = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].x : (55.0f + i * 116.0f);
+            ac.currentY = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].y : 530.0f;
+            ac.targetX = static_cast<float>(windowWidth) + 180.0f; // Geser ke kanan ke luar layar!
+            ac.targetY = ac.currentY;
+            discardAnimatedCards.push_back(ac);
+        }
+    }
+
+    isDiscarding = true;
+    discardTimer = 0.0f;
+}
+
+void GameWindow::updateDiscardSequence(float dt) {
+    if (!isDiscarding) return;
+
+    discardTimer += dt;
+    for (auto& ac : discardAnimatedCards) {
+        ac.currentX += (ac.targetX - ac.currentX) * min(1.0f, 15.0f * dt);
+    }
+
+    if (discardTimer >= 0.28f) {
+        try {
+            engine.discard();
+        } catch (const GameException& e) {
+            showToast(e.what());
+        }
+        isDiscarding = false;
+        discardAnimatedCards.clear();
+    }
+}
+
 void GameWindow::updateCardAnimations(float dt) {
     const auto& hand = engine.getHand();
     if (cardAnims.size() != hand.size()) {
@@ -881,27 +946,114 @@ void GameWindow::updateCardAnimations(float dt) {
     float mx = static_cast<float>(mouseX);
     float my = static_cast<float>(mouseY);
 
+    hoveredCardIndex = -1;
+
     for (size_t i = 0; i < hand.size(); ++i) {
         float targetX = startX + i * (cardW + spacing);
 
         float curX = cardAnims[i].initialized ? cardAnims[i].x : targetX;
         float curY = cardAnims[i].initialized ? cardAnims[i].y : baseY;
-        bool isHovered = isPointInRect(mx, my, curX, curY, cardW, cardH);
+        bool isHovered = (scoringStep == ScoringStep::IDLE && !isDiscarding) && isPointInRect(mx, my, curX, curY, cardW, cardH);
+        if (isHovered) {
+            hoveredCardIndex = static_cast<int>(i);
+        }
 
         float targetElev = hand[i].isSelected() ? 1.0f : (isHovered ? 0.35f : 0.0f);
         float targetY = baseY - targetElev * 32.0f;
 
         if (!cardAnims[i].initialized) {
+            // Kartu baru: Meluncur anggun dari bawah luar layar!
             cardAnims[i].x = targetX;
-            cardAnims[i].y = targetY;
+            cardAnims[i].y = static_cast<float>(windowHeight) + 160.0f;
             cardAnims[i].elevation = targetElev;
+            cardAnims[i].delayTimer = i * 0.045f; // Dealing bertahap
             cardAnims[i].initialized = true;
         } else {
-            float speed = min(1.0f, 18.0f * dt);
-            cardAnims[i].x += (targetX - cardAnims[i].x) * speed;
-            cardAnims[i].y += (targetY - cardAnims[i].y) * speed;
-            cardAnims[i].elevation += (targetElev - cardAnims[i].elevation) * speed;
+            if (cardAnims[i].delayTimer > 0.0f) {
+                cardAnims[i].delayTimer -= dt;
+            } else {
+                float speed = min(1.0f, 16.0f * dt);
+                cardAnims[i].x += (targetX - cardAnims[i].x) * speed;
+                cardAnims[i].y += (targetY - cardAnims[i].y) * speed;
+                cardAnims[i].elevation += (targetElev - cardAnims[i].elevation) * speed;
+            }
         }
+    }
+}
+
+void GameWindow::renderCardTooltip(float dt) {
+    const auto& hand = engine.getHand();
+
+    if (hoveredCardIndex >= 0 && hoveredCardIndex < static_cast<int>(hand.size()) && scoringStep == ScoringStep::IDLE && !isDiscarding) {
+        hoverTooltipAlpha += (1.0f - hoverTooltipAlpha) * min(1.0f, 22.0f * dt);
+    } else {
+        hoverTooltipAlpha += (0.0f - hoverTooltipAlpha) * min(1.0f, 22.0f * dt);
+    }
+
+    if (hoverTooltipAlpha <= 0.01f || hoveredCardIndex < 0 || hoveredCardIndex >= static_cast<int>(hand.size())) {
+        return;
+    }
+
+    const Card& card = hand[hoveredCardIndex];
+    float cardX = (hoveredCardIndex < static_cast<int>(cardAnims.size()) && cardAnims[hoveredCardIndex].initialized) ? 
+                   cardAnims[hoveredCardIndex].x : (55.0f + hoveredCardIndex * 116.0f);
+    float cardY = (hoveredCardIndex < static_cast<int>(cardAnims.size()) && cardAnims[hoveredCardIndex].initialized) ? 
+                   cardAnims[hoveredCardIndex].y : 530.0f;
+    float cardW = 88.0f;
+
+    float tipW = 160.0f;
+    float tipH = 70.0f;
+    float tipX = cardX + (cardW - tipW) * 0.5f;
+    tipX = max(15.0f, min(static_cast<float>(windowWidth) - tipW - 15.0f, tipX));
+    float tipY = cardY - tipH - 14.0f;
+
+    // 1. Bayangan Tooltip
+    Renderer::drawRect(tipX + 4.0f, tipY + 4.0f, tipW, tipH, Color(0.0f, 0.0f, 0.0f, 0.38f * hoverTooltipAlpha));
+
+    // 2. Bodi Kotak Putih Bersih
+    Renderer::drawRect(tipX, tipY, tipW, tipH, Color(0.97f, 0.97f, 0.95f, hoverTooltipAlpha));
+    Renderer::drawRectOutline(tipX, tipY, tipW, tipH, 2.0f, Color(0.25f, 0.32f, 0.30f, hoverTooltipAlpha));
+
+    // 3. Kotak Badge Header Kartu ("9 of Hearts")
+    float badgeX = tipX + 6.0f;
+    float badgeY = tipY + 6.0f;
+    float badgeW = tipW - 12.0f;
+    float badgeH = 26.0f;
+    Renderer::drawRectOutline(badgeX, badgeY, badgeW, badgeH, 1.5f, Color(0.65f, 0.70f, 0.68f, hoverTooltipAlpha));
+
+    // Format Nama Lengkap Kartu: Rank + " of " + Suit
+    string rankName = card.getRankString();
+    Rank r = card.getRank();
+    if (r == Rank::JACK) rankName = "Jack";
+    else if (r == Rank::QUEEN) rankName = "Queen";
+    else if (r == Rank::KING) rankName = "King";
+    else if (r == Rank::ACE) rankName = "Ace";
+
+    string suitName = "Spades";
+    Color suitCol = Theme::TEXT_DARK;
+    if (card.getSuit() == Suit::HEARTS) { suitName = "Hearts"; suitCol = Theme::MULT_RED; }
+    else if (card.getSuit() == Suit::DIAMONDS) { suitName = "Diamonds"; suitCol = Theme::MULT_RED; }
+    else if (card.getSuit() == Suit::CLUBS) { suitName = "Clubs"; suitCol = Color(0.18f, 0.40f, 0.28f); }
+    else if (card.getSuit() == Suit::SPADES) { suitName = "Spades"; suitCol = Theme::TEXT_DARK; }
+
+    if (card.isDebuffed()) suitCol = Theme::DEBUFF_GRAY;
+
+    string fullTitle = rankName + " of " + suitName;
+    float titleScale = (fullTitle.length() > 14) ? 1.05f : 1.2f;
+    Renderer::drawCenteredText(fullTitle, badgeX + badgeW * 0.5f, badgeY + 6.0f, titleScale, 
+                               Color(suitCol.r, suitCol.g, suitCol.b, hoverTooltipAlpha));
+
+    // 4. Garis Pembatas
+    Renderer::drawRect(tipX + 10.0f, tipY + 36.0f, tipW - 20.0f, 1.0f, Color(0.78f, 0.80f, 0.78f, hoverTooltipAlpha));
+
+    // 5. Bagian Bawah: "+X chips" persis seperti di Balatro
+    if (card.isDebuffed()) {
+        Renderer::drawCenteredText("DEBUFFED (0 chips)", tipX + tipW * 0.5f, tipY + 45.0f, 1.15f, 
+                                   Color(Theme::MULT_RED.r, Theme::MULT_RED.g, Theme::MULT_RED.b, hoverTooltipAlpha));
+    } else {
+        string chipStr = "+" + to_string(card.getBaseChips()) + " chips";
+        Renderer::drawCenteredText(chipStr, tipX + tipW * 0.5f, tipY + 45.0f, 1.4f, 
+                                   Color(Theme::CHIPS_BLUE.r, Theme::CHIPS_BLUE.g, Theme::CHIPS_BLUE.b, hoverTooltipAlpha));
     }
 }
 
@@ -917,8 +1069,11 @@ void GameWindow::renderCards() {
     float my = static_cast<float>(mouseY);
 
     for (size_t i = 0; i < hand.size(); ++i) {
-        // Jika animasi scoring sedang berjalan dan kartu ini sedang di tengah meja, jangan render di hand
+        // Jika animasi scoring atau discard sedang berjalan dan kartu ini sedang dianimasikan, lewati rendering kartu tangan
         if (scoringStep != ScoringStep::IDLE && hand[i].isSelected()) {
+            continue;
+        }
+        if (isDiscarding && hand[i].isSelected()) {
             continue;
         }
 
@@ -926,12 +1081,19 @@ void GameWindow::renderCards() {
         float cy = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].y : baseY;
         float elev = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].elevation : (hand[i].isSelected() ? 1.0f : 0.0f);
 
-        bool isHovered = (scoringStep == ScoringStep::IDLE) && isPointInRect(mx, my, cx, cy, cardW, cardH);
+        bool isHovered = (scoringStep == ScoringStep::IDLE && !isDiscarding) && isPointInRect(mx, my, cx, cy, cardW, cardH);
 
         Renderer::drawCard(hand[i], cx, cy, cardW, cardH, isHovered, elev);
 
         string keyNum = "[" + to_string(i + 1) + "]";
         Renderer::drawText(keyNum, cx + (cardW / 2.0f) - 10.0f, baseY + cardH + 12.0f, 1.1f, Color(0.6f, 0.7f, 0.65f, 0.8f));
+    }
+
+    // Gambar kartu yang sedang meluncur ke kanan karena di-discard
+    if (isDiscarding) {
+        for (const auto& dac : discardAnimatedCards) {
+            Renderer::drawCard(dac.card, dac.currentX, dac.currentY, cardW, cardH, false, 0.5f);
+        }
     }
 }
 
@@ -940,6 +1102,7 @@ void GameWindow::renderRoundGameplay() {
     renderScoringPreview();
     renderControls();
     renderCards();
+    renderCardTooltip(0.016f); // Update dan render tooltip
     renderFloatingTexts();
 }
 
@@ -974,6 +1137,7 @@ void GameWindow::renderUI(float dt) {
     } else {
         updateCardAnimations(dt);
         updateScoringSequence(dt);
+        updateDiscardSequence(dt);
         updateFloatingTexts(dt);
         renderRoundGameplay();
     }

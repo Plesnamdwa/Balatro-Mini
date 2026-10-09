@@ -12,9 +12,10 @@ using namespace std;
 
 struct CardAnim {
     float x = 0.0f;
-    float y = 530.0f;
+    float y = 780.0f;
     float elevation = 0.0f;
     bool initialized = false;
+    float delayTimer = 0.0f;
 };
 
 enum class ScoringStep {
@@ -24,6 +25,7 @@ enum class ScoringStep {
     MULT_TRIGGER,      // Poker hand base mult terpicu (+Mult pop)
     FINAL_SLAM,        // Chips x Mult bertubrukan (Screen shake!)
     SCORE_TICK,        // Skor ronde bertambah bergulir & progress bar terisi
+    SLIDE_OUT,         // Kartu meluncur ke kanan keluar layar
     FINISHED
 };
 
@@ -84,6 +86,15 @@ private:
     vector<AnimatedCard> scoringAnimatedCards;
     vector<FloatingText> floatingTexts;
 
+    // State Animasi Discard (Kartu bergeser ke kanan ke luar layar)
+    bool isDiscarding;
+    float discardTimer;
+    vector<AnimatedCard> discardAnimatedCards;
+
+    // State Tooltip Info Kartu saat Hover (Balatro Style)
+    int hoveredCardIndex;
+    float hoverTooltipAlpha;
+
     // State Toast Notification (Error / Warning feedback)
     string toastMessage;
     float toastTimer;
@@ -95,10 +106,13 @@ private:
     void processInput();
     void updateCardAnimations(float dt);
     void updateScoringSequence(float dt);
+    void updateDiscardSequence(float dt);
     void updateFloatingTexts(float dt);
     void startScoringSequence();
+    void startDiscardSequence();
     void spawnFloatingText(const string& text, float x, float y, Color col, float scale = 1.6f);
     void renderFloatingTexts();
+    void renderCardTooltip(float dt);
 
     void renderUI(float dt);
 
