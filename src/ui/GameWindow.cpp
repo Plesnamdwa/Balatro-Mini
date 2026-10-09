@@ -25,7 +25,11 @@ static void framebufferSizeCallback(GLFWwindow* /*window*/, int width, int heigh
 }
 
 GameWindow::GameWindow(int width, int height, const string& title)
-    : window(nullptr), windowWidth(width), windowHeight(height), windowTitle(title), toastTimer(0.0f), mouseX(0), mouseY(0) {}
+    : window(nullptr), windowWidth(width), windowHeight(height), windowTitle(title),
+      scoringStep(ScoringStep::IDLE), scoringTimer(0.0f), animSpeedMultiplier(1.0f),
+      currentTriggerIndex(0), animChips(0), animMult(0), animFinalScore(0),
+      chipsBoxScale(1.0f), multBoxScale(1.0f), displayedRoundScore(0),
+      targetRoundScore(0), cameraShake(0.0f), toastTimer(0.0f), mouseX(0), mouseY(0) {}
 
 GameWindow::~GameWindow() {
     if (window) {
@@ -74,6 +78,12 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
         return;
     }
 
+    // Fast-forward animasi scoring jika sedang berjalan
+    if (scoringStep != ScoringStep::IDLE) {
+        animSpeedMultiplier = 3.5f;
+        return;
+    }
+
     float mx = static_cast<float>(mouseX);
     float my = static_cast<float>(mouseY);
     string state = engine.getCurrentStateName();
@@ -83,6 +93,8 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
         // Tombol START NEW RUN (x: 382, y: 310, w: 260, h: 50)
         if (isPointInRect(mx, my, 382.0f, 310.0f, 260.0f, 50.0f)) {
             engine.startNewRun();
+            displayedRoundScore = 0;
+            targetRoundScore = 0;
             return;
         }
         // Tombol QUIT (x: 432, y: 380, w: 160, h: 42)
@@ -100,6 +112,8 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
             if (isPointInRect(mx, my, btnXs[i], 495.0f, 200.0f, 45.0f)) {
                 if (engine.isBlindCurrent(i)) {
                     engine.selectBlind();
+                    displayedRoundScore = engine.getCurrentScore();
+                    targetRoundScore = engine.getCurrentScore();
                     return;
                 } else if (engine.isBlindDefeated(i)) {
                     showToast("Blind already defeated!");
@@ -141,13 +155,9 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
             }
         }
 
-        // Tombol PLAY HAND (x: 410, y: 440, w: 140, h: 48)
+        // Tombol PLAY HAND (Memicu Sekuens Animasi Scoring)
         if (isPointInRect(mx, my, 410.0f, 440.0f, 140.0f, 48.0f)) {
-            try {
-                engine.playHand();
-            } catch (const GameException& e) {
-                showToast(e.what());
-            }
+            startScoringSequence();
             return;
         }
 
@@ -167,6 +177,8 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
     if (state == "ROUND_WON") {
         if (isPointInRect(mx, my, 460.0f, 440.0f, 180.0f, 48.0f)) {
             engine.cashOut();
+            displayedRoundScore = 0;
+            targetRoundScore = 0;
             return;
         }
         return;
@@ -176,6 +188,8 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
     if (state == "GAME_OVER") {
         if (isPointInRect(mx, my, 390.0f, 440.0f, 160.0f, 48.0f)) {
             engine.startNewRun();
+            displayedRoundScore = 0;
+            targetRoundScore = 0;
             showToast("New run started!");
             return;
         }
@@ -190,6 +204,14 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
 void GameWindow::handleKey(int key, int /*scancode*/, int action, int /*mods*/) {
     if (action != GLFW_PRESS) return;
 
+    // Fast-forward animasi scoring jika tombol Space/Enter ditekan
+    if (scoringStep != ScoringStep::IDLE) {
+        if (key == GLFW_KEY_SPACE || key == GLFW_KEY_ENTER) {
+            animSpeedMultiplier = 3.5f;
+        }
+        return;
+    }
+
     string state = engine.getCurrentStateName();
 
     if (key == GLFW_KEY_ESCAPE) {
@@ -201,14 +223,22 @@ void GameWindow::handleKey(int key, int /*scancode*/, int action, int /*mods*/) 
     } else if (key == GLFW_KEY_SPACE || key == GLFW_KEY_ENTER) {
         if (state == "MAIN_MENU") {
             engine.startNewRun();
+            displayedRoundScore = 0;
+            targetRoundScore = 0;
         } else if (state == "BLIND_SELECT") {
             engine.selectBlind();
+            displayedRoundScore = engine.getCurrentScore();
+            targetRoundScore = engine.getCurrentScore();
         } else if (state == "SELECTING_CARDS") {
-            try { engine.playHand(); } catch (const GameException& e) { showToast(e.what()); }
+            startScoringSequence();
         } else if (state == "ROUND_WON") {
             engine.cashOut();
+            displayedRoundScore = 0;
+            targetRoundScore = 0;
         } else if (state == "GAME_OVER") {
             engine.startNewRun();
+            displayedRoundScore = 0;
+            targetRoundScore = 0;
         }
     } else if (key == GLFW_KEY_D) {
         if (state == "SELECTING_CARDS") {
@@ -216,6 +246,8 @@ void GameWindow::handleKey(int key, int /*scancode*/, int action, int /*mods*/) 
         }
     } else if (key == GLFW_KEY_R) {
         engine.startNewRun();
+        displayedRoundScore = 0;
+        targetRoundScore = 0;
         showToast("Run restarted!");
     } else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_8) {
         if (state == "SELECTING_CARDS") {
@@ -404,12 +436,31 @@ void GameWindow::renderHUD() {
 
     Renderer::drawRect(45.0f, 260.0f, 220.0f, 2.0f, Color(0.3f, 0.5f, 0.4f, 0.6f));
 
+    // Round Score dengan Nilai Bergulir Halus
     Renderer::drawText("ROUND SCORE:", 45.0f, 275.0f, 1.4f, Theme::TEXT_WHITE);
-    string scoreStr = to_string(engine.getCurrentScore()) + " / " + to_string(blind.getTargetScore());
-    Renderer::drawText(scoreStr, 45.0f, 300.0f, 2.2f, Theme::GOLD);
+    string scoreStr = to_string(displayedRoundScore) + " / " + to_string(blind.getTargetScore());
+    Renderer::drawText(scoreStr, 45.0f, 298.0f, 2.0f, Theme::GOLD);
+
+    // Dynamic Target Progress Bar (Bilah Kemajuan Skor)
+    float barX = 45.0f;
+    float barY = 325.0f;
+    float barW = 220.0f;
+    float barH = 10.0f;
+    Renderer::drawRect(barX, barY, barW, barH, Color(0.10f, 0.16f, 0.14f, 0.95f));
+    Renderer::drawRectOutline(barX, barY, barW, barH, 1.5f, Color(0.25f, 0.40f, 0.35f, 0.8f));
+
+    float progress = min(1.0f, static_cast<float>(displayedRoundScore) / static_cast<float>(max(1, blind.getTargetScore())));
+    if (progress > 0.001f) {
+        float fillW = barW * progress;
+        Color barColor = (displayedRoundScore >= blind.getTargetScore()) ? Color(0.25f, 0.95f, 0.45f) : Theme::GOLD;
+        Renderer::drawRect(barX, barY, fillW, barH, barColor);
+        if (fillW > 3.0f) {
+            Renderer::drawRect(barX + fillW - 2.0f, barY, 2.0f, barH, Color(1.0f, 1.0f, 1.0f, 0.85f));
+        }
+    }
 
     string moneyStr = "Money: $" + to_string(engine.getMoney());
-    Renderer::drawText(moneyStr, 45.0f, 345.0f, 1.8f, Theme::GOLD);
+    Renderer::drawText(moneyStr, 45.0f, 346.0f, 1.8f, Theme::GOLD);
 
     string handsStr = "Hands: " + to_string(engine.getHandsRemaining());
     Renderer::drawText(handsStr, 45.0f, 380.0f, 1.8f, Theme::CHIPS_BLUE);
@@ -419,6 +470,288 @@ void GameWindow::renderHUD() {
 
     string deckStr = "Deck: " + to_string(engine.getDeckRemainingCount()) + " cards";
     Renderer::drawText(deckStr, 45.0f, 440.0f, 1.3f, Theme::TEXT_WHITE);
+}
+
+void GameWindow::spawnFloatingText(const string& text, float x, float y, Color col, float scale) {
+    FloatingText ft;
+    ft.text = text;
+    ft.x = x;
+    ft.y = y;
+    ft.vy = -45.0f;
+    ft.color = col;
+    ft.scale = scale;
+    ft.alpha = 1.0f;
+    ft.lifetime = 0.0f;
+    floatingTexts.push_back(ft);
+}
+
+void GameWindow::updateFloatingTexts(float dt) {
+    float effectiveDt = dt * animSpeedMultiplier;
+    for (auto it = floatingTexts.begin(); it != floatingTexts.end(); ) {
+        it->lifetime += effectiveDt;
+        it->y += it->vy * effectiveDt;
+        it->vy += 15.0f * effectiveDt; // pelan-pelan melambat
+        if (it->lifetime > 0.35f) {
+            it->alpha -= 2.2f * effectiveDt;
+        }
+
+        if (it->alpha <= 0.01f || it->lifetime >= 0.85f) {
+            it = floatingTexts.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void GameWindow::renderFloatingTexts() {
+    for (const auto& ft : floatingTexts) {
+        Color c = ft.color;
+        c.a = max(0.0f, min(1.0f, ft.alpha));
+        Renderer::drawCenteredText(ft.text, ft.x, ft.y, ft.scale, c);
+    }
+}
+
+void GameWindow::startScoringSequence() {
+    vector<Card> selected = engine.getSelectedCards();
+    if (selected.empty()) {
+        showToast("Select 1 to 5 cards first!");
+        return;
+    }
+    if (selected.size() > 5) {
+        showToast("Maximum 5 cards can be played!");
+        return;
+    }
+    if (engine.getHandsRemaining() <= 0) {
+        showToast("No hands remaining!");
+        return;
+    }
+
+    ScoringEngine se;
+    activeScoreResult = se.calculateScore(selected);
+
+    scoringAnimatedCards.clear();
+    floatingTexts.clear();
+
+    float cardW = 88.0f;
+    float spacing = 20.0f;
+    size_t count = selected.size();
+    float totalW = count * cardW + (count - 1) * spacing;
+    float startCenterX = 310.0f + (680.0f - totalW) * 0.5f;
+    float centerTargetY = 245.0f;
+
+    const auto& hand = engine.getHand();
+    for (size_t i = 0; i < count; ++i) {
+        AnimatedCard ac(selected[i]);
+
+        ac.isScoring = false;
+        for (const auto& sc : activeScoreResult.scoringCards) {
+            if (sc == ac.card) {
+                ac.isScoring = true;
+                break;
+            }
+        }
+
+        float originX = 55.0f + i * 116.0f;
+        float originY = 530.0f;
+        for (size_t hIdx = 0; hIdx < hand.size(); ++hIdx) {
+            if (hand[hIdx] == ac.card && hIdx < cardAnims.size() && cardAnims[hIdx].initialized) {
+                originX = cardAnims[hIdx].x;
+                originY = cardAnims[hIdx].y;
+                break;
+            }
+        }
+
+        ac.startX = originX;
+        ac.startY = originY;
+        ac.currentX = originX;
+        ac.currentY = originY;
+        ac.targetX = startCenterX + i * (cardW + spacing);
+        ac.targetY = centerTargetY;
+        ac.scale = 1.0f;
+        ac.glow = 0.0f;
+        ac.triggered = false;
+
+        scoringAnimatedCards.push_back(ac);
+    }
+
+    scoringStep = ScoringStep::SLIDE_IN;
+    scoringTimer = 0.0f;
+    animSpeedMultiplier = 1.0f;
+    currentTriggerIndex = 0;
+
+    animChips = activeScoreResult.baseChips;
+    animMult = 1;
+    animFinalScore = 0;
+    chipsBoxScale = 1.0f;
+    multBoxScale = 1.0f;
+    cameraShake = 0.0f;
+
+    displayedRoundScore = engine.getCurrentScore();
+    targetRoundScore = engine.getCurrentScore();
+}
+
+void GameWindow::updateScoringSequence(float dt) {
+    if (scoringStep == ScoringStep::IDLE) return;
+
+    float effectiveDt = dt * animSpeedMultiplier;
+    scoringTimer += effectiveDt;
+
+    // Lerp chip/mult box scaling back to 1.0f
+    chipsBoxScale += (1.0f - chipsBoxScale) * min(1.0f, 12.0f * effectiveDt);
+    multBoxScale += (1.0f - multBoxScale) * min(1.0f, 12.0f * effectiveDt);
+
+    // Lerp card scale and glow back to normal
+    for (auto& ac : scoringAnimatedCards) {
+        ac.scale += (1.0f - ac.scale) * min(1.0f, 10.0f * effectiveDt);
+        ac.glow += (0.0f - ac.glow) * min(1.0f, 8.0f * effectiveDt);
+    }
+
+    if (scoringStep == ScoringStep::SLIDE_IN) {
+        for (auto& ac : scoringAnimatedCards) {
+            ac.currentX += (ac.targetX - ac.currentX) * min(1.0f, 14.0f * effectiveDt);
+            ac.currentY += (ac.targetY - ac.currentY) * min(1.0f, 14.0f * effectiveDt);
+        }
+
+        if (scoringTimer >= 0.35f) {
+            scoringStep = ScoringStep::CARD_TRIGGERS;
+            scoringTimer = 0.0f;
+            currentTriggerIndex = 0;
+        }
+    } 
+    else if (scoringStep == ScoringStep::CARD_TRIGGERS) {
+        float triggerInterval = 0.32f;
+        if (currentTriggerIndex < static_cast<int>(scoringAnimatedCards.size())) {
+            if (scoringTimer >= triggerInterval) {
+                scoringTimer -= triggerInterval;
+                auto& ac = scoringAnimatedCards[currentTriggerIndex];
+                ac.triggered = true;
+                ac.scale = 1.25f;
+                ac.glow = 1.0f;
+
+                if (ac.isScoring) {
+                    int chipGained = ac.card.getBaseChips();
+                    animChips += chipGained;
+                    chipsBoxScale = 1.30f;
+
+                    string chipPop = "+" + to_string(chipGained);
+                    spawnFloatingText(chipPop, ac.targetX + 44.0f, ac.targetY - 20.0f, Theme::CHIPS_BLUE, 1.8f);
+                } else {
+                    spawnFloatingText("...", ac.targetX + 44.0f, ac.targetY - 14.0f, Theme::DEBUFF_GRAY, 1.2f);
+                }
+
+                currentTriggerIndex++;
+            }
+        } else {
+            if (scoringTimer >= 0.28f) {
+                scoringStep = ScoringStep::MULT_TRIGGER;
+                scoringTimer = 0.0f;
+            }
+        }
+    } 
+    else if (scoringStep == ScoringStep::MULT_TRIGGER) {
+        if (scoringTimer >= 0.10f && animMult == 1) {
+            animMult = activeScoreResult.totalMult;
+            multBoxScale = 1.35f;
+            string multPop = "+" + to_string(activeScoreResult.totalMult) + " MULT";
+            spawnFloatingText(multPop, 790.0f, 80.0f, Theme::MULT_RED, 2.0f);
+        }
+
+        if (scoringTimer >= 0.45f) {
+            scoringStep = ScoringStep::FINAL_SLAM;
+            scoringTimer = 0.0f;
+        }
+    } 
+    else if (scoringStep == ScoringStep::FINAL_SLAM) {
+        if (animFinalScore == 0) {
+            animFinalScore = activeScoreResult.finalScore;
+            chipsBoxScale = 1.35f;
+            multBoxScale = 1.35f;
+            cameraShake = 8.0f;
+
+            string finalPop = "+" + to_string(animFinalScore) + "!";
+            spawnFloatingText(finalPop, 650.0f, 195.0f, Theme::GOLD, 2.6f);
+        }
+
+        if (scoringTimer >= 0.50f) {
+            scoringStep = ScoringStep::SCORE_TICK;
+            scoringTimer = 0.0f;
+            targetRoundScore = engine.getCurrentScore() + activeScoreResult.finalScore;
+        }
+    } 
+    else if (scoringStep == ScoringStep::SCORE_TICK) {
+        if (displayedRoundScore < targetRoundScore) {
+            int step = max(1, static_cast<int>((targetRoundScore - displayedRoundScore) * 12.0f * effectiveDt));
+            displayedRoundScore = min(targetRoundScore, displayedRoundScore + step);
+        }
+
+        if (scoringTimer >= 0.55f && displayedRoundScore >= targetRoundScore) {
+            scoringStep = ScoringStep::FINISHED;
+        }
+    } 
+    else if (scoringStep == ScoringStep::FINISHED) {
+        try {
+            engine.playHand();
+        } catch (const GameException& e) {
+            showToast(e.what());
+        }
+
+        displayedRoundScore = engine.getCurrentScore();
+        targetRoundScore = engine.getCurrentScore();
+        scoringAnimatedCards.clear();
+        scoringStep = ScoringStep::IDLE;
+    }
+}
+
+void GameWindow::renderActiveScoringDisplay() {
+    // 1. Nama Hand Poker Besar di Atas
+    Renderer::drawCenteredText(activeScoreResult.handName, 650.0f, 55.0f, 2.6f, Theme::GOLD);
+
+    // 2. Kotak CHIPS Berdenyut (Biru)
+    float bw = 180.0f * chipsBoxScale;
+    float bh = 85.0f * chipsBoxScale;
+    float bx = 510.0f - bw * 0.5f;
+    float by = 145.0f - bh * 0.5f;
+
+    Renderer::drawRect(bx, by, bw, bh, Theme::CHIPS_BLUE);
+    Renderer::drawRectOutline(bx, by, bw, bh, 3.0f, (chipsBoxScale > 1.05f) ? Color(1.0f, 1.0f, 1.0f, 1.0f) : Color(1, 1, 1, 0.8f));
+    Renderer::drawCenteredText("CHIPS", bx + bw * 0.5f, by + 10.0f, 1.4f, Theme::TEXT_WHITE);
+    string cStr = to_string(animChips);
+    Renderer::drawCenteredText(cStr, bx + bw * 0.5f, by + 35.0f, 2.8f, Theme::TEXT_WHITE);
+
+    // 3. Simbol Perkalian "X"
+    Renderer::drawCenteredText("X", 650.0f, 140.0f, 3.5f, Theme::TEXT_WHITE);
+
+    // 4. Kotak MULT Berdenyut (Merah)
+    float mw = 180.0f * multBoxScale;
+    float mh = 85.0f * multBoxScale;
+    float mx = 790.0f - mw * 0.5f;
+    float my = 145.0f - mh * 0.5f;
+
+    Renderer::drawRect(mx, my, mw, mh, Theme::MULT_RED);
+    Renderer::drawRectOutline(mx, my, mw, mh, 3.0f, (multBoxScale > 1.05f) ? Color(1.0f, 1.0f, 1.0f, 1.0f) : Color(1, 1, 1, 0.8f));
+    Renderer::drawCenteredText("MULT", mx + mw * 0.5f, my + 10.0f, 1.4f, Theme::TEXT_WHITE);
+    string mStr = to_string(animMult);
+    Renderer::drawCenteredText(mStr, mx + mw * 0.5f, my + 35.0f, 2.8f, Theme::TEXT_WHITE);
+
+    // 5. Total Skor yang Terhitung saat Slam
+    if (scoringStep == ScoringStep::FINAL_SLAM || scoringStep == ScoringStep::SCORE_TICK) {
+        string totalStr = "SCORED +" + to_string(animFinalScore) + " PTS!";
+        Renderer::drawCenteredText(totalStr, 650.0f, 215.0f, 2.2f, Theme::GOLD);
+    }
+
+    // 6. Kartu-kartu yang Dimainkan di Meja Tengah
+    for (const auto& ac : scoringAnimatedCards) {
+        float cardW = 88.0f * ac.scale;
+        float cardH = 130.0f * ac.scale;
+        float renderX = ac.currentX - (cardW - 88.0f) * 0.5f;
+        float renderY = ac.currentY - (cardH - 130.0f) * 0.5f;
+
+        Renderer::drawCard(ac.card, renderX, renderY, cardW, cardH, false, ac.isScoring ? 0.6f : 0.0f);
+
+        if (ac.glow > 0.05f) {
+            Renderer::drawRectOutline(renderX - 3.0f, renderY - 3.0f, cardW + 6.0f, cardH + 6.0f, 3.0f, Color(1.0f, 0.90f, 0.25f, ac.glow));
+        }
+    }
 }
 
 void GameWindow::renderScoringPreview() {
@@ -439,6 +772,11 @@ void GameWindow::renderScoringPreview() {
         Renderer::drawText("GAME OVER!", 480.0f, 120.0f, 3.5f, Theme::MULT_RED);
         Renderer::drawText("You ran out of hands before beating the blind.", 390.0f, 175.0f, 1.5f, Theme::TEXT_WHITE);
         Renderer::drawText("Click 'TRY AGAIN' or return to 'MAIN MENU'", 410.0f, 210.0f, 1.5f, Theme::GOLD);
+        return;
+    }
+
+    if (scoringStep != ScoringStep::IDLE) {
+        renderActiveScoringDisplay();
         return;
     }
 
@@ -495,6 +833,13 @@ void GameWindow::renderControls() {
     float mx = static_cast<float>(mouseX);
     float my = static_cast<float>(mouseY);
     string state = engine.getCurrentStateName();
+
+    if (scoringStep != ScoringStep::IDLE) {
+        Renderer::drawButton("SCORING...", 410.0f, 440.0f, 140.0f, 48.0f, Theme::GOLD, Theme::TEXT_DARK, false, false);
+        bool hoverFast = isPointInRect(mx, my, 580.0f, 440.0f, 140.0f, 48.0f);
+        Renderer::drawButton("FAST [SPC]", 580.0f, 440.0f, 140.0f, 48.0f, Color(0.20f, 0.45f, 0.35f), Theme::TEXT_WHITE, hoverFast, true);
+        return;
+    }
 
     if (state == "ROUND_WON") {
         bool hoverCash = isPointInRect(mx, my, 460.0f, 440.0f, 180.0f, 48.0f);
@@ -572,11 +917,16 @@ void GameWindow::renderCards() {
     float my = static_cast<float>(mouseY);
 
     for (size_t i = 0; i < hand.size(); ++i) {
+        // Jika animasi scoring sedang berjalan dan kartu ini sedang di tengah meja, jangan render di hand
+        if (scoringStep != ScoringStep::IDLE && hand[i].isSelected()) {
+            continue;
+        }
+
         float cx = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].x : (startX + i * (cardW + spacing));
         float cy = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].y : baseY;
         float elev = (i < cardAnims.size() && cardAnims[i].initialized) ? cardAnims[i].elevation : (hand[i].isSelected() ? 1.0f : 0.0f);
 
-        bool isHovered = isPointInRect(mx, my, cx, cy, cardW, cardH);
+        bool isHovered = (scoringStep == ScoringStep::IDLE) && isPointInRect(mx, my, cx, cy, cardW, cardH);
 
         Renderer::drawCard(hand[i], cx, cy, cardW, cardH, isHovered, elev);
 
@@ -590,6 +940,7 @@ void GameWindow::renderRoundGameplay() {
     renderScoringPreview();
     renderControls();
     renderCards();
+    renderFloatingTexts();
 }
 
 void GameWindow::renderUI(float dt) {
@@ -600,6 +951,20 @@ void GameWindow::renderUI(float dt) {
     float time = static_cast<float>(glfwGetTime());
     Renderer::drawAnimatedBackground(static_cast<float>(windowWidth), static_cast<float>(windowHeight), time);
 
+    // Screen Shake effect saat Mult Slam
+    float shakeX = 0.0f;
+    float shakeY = 0.0f;
+    if (cameraShake > 0.01f) {
+        shakeX = sin(time * 50.0f) * cameraShake;
+        shakeY = cos(time * 60.0f) * cameraShake;
+        cameraShake -= 16.0f * dt;
+        if (cameraShake < 0.0f) cameraShake = 0.0f;
+    }
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glTranslatef(shakeX, shakeY, 0.0f);
+
     string state = engine.getCurrentStateName();
 
     if (state == "MAIN_MENU") {
@@ -608,8 +973,13 @@ void GameWindow::renderUI(float dt) {
         renderBlindSelect();
     } else {
         updateCardAnimations(dt);
+        updateScoringSequence(dt);
+        updateFloatingTexts(dt);
         renderRoundGameplay();
     }
+
+    // Reset Modelview matrix untuk Toast notification
+    glLoadIdentity();
 
     if (toastTimer > 0.0f) {
         float alpha = min(1.0f, toastTimer);
