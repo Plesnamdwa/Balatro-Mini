@@ -183,7 +183,83 @@ void GameWindow::handleMouseClick(int button, int action, int /*mods*/) {
         return;
     }
 
-    // 5. KLIK PADA LAYAR GAME_OVER
+    // 5. KLIK PADA LAYAR SHOP (THE SHOP)
+    if (state == "SHOP") {
+        const auto& inventory = engine.getShopInventory();
+        float itemW = 92.0f;
+        float itemH = 135.0f;
+        float spacing = 150.0f;
+        float startX = 512.0f - ((inventory.size() * spacing) * 0.5f) + 30.0f;
+
+        // Cek klik tombol BUY pada etalase toko
+        for (size_t i = 0; i < inventory.size(); ++i) {
+            float jx = startX + i * spacing;
+            float jy = 300.0f;
+            float btnW = 90.0f;
+            float btnH = 34.0f;
+            float btnX = jx + (itemW - btnW) * 0.5f;
+            float btnY = jy + itemH + 15.0f;
+
+            if (isPointInRect(mx, my, btnX, btnY, btnW, btnH)) {
+                try {
+                    engine.buyJoker(static_cast<int>(i));
+                    showToast("Purchased " + inventory[i].getName() + "!");
+                } catch (const GameException& e) {
+                    showToast(e.what());
+                }
+                return;
+            }
+        }
+
+        // Cek klik tombol SELL pada slot Joker pemain
+        const auto& jokers = engine.getJokers();
+        int maxJokers = engine.getMaxJokers();
+        float slotW = 76.0f;
+        float slotH = 110.0f;
+        float slotSpacing = 16.0f;
+        float jokersStartX = 512.0f - (maxJokers * slotW + (maxJokers - 1) * slotSpacing) * 0.5f;
+        float slotY = 125.0f;
+
+        for (size_t i = 0; i < jokers.size(); ++i) {
+            float sx = jokersStartX + i * (slotW + slotSpacing);
+            float sellW = 70.0f;
+            float sellH = 24.0f;
+            float sellX = sx + (slotW - sellW) * 0.5f;
+            float sellY = slotY + slotH + 6.0f;
+
+            if (isPointInRect(mx, my, sellX, sellY, sellW, sellH)) {
+                try {
+                    int sellVal = jokers[i].getSellValue();
+                    string jName = jokers[i].getName();
+                    engine.sellJoker(static_cast<int>(i));
+                    showToast("Sold " + jName + " for $" + to_string(sellVal) + "!");
+                } catch (const GameException& e) {
+                    showToast(e.what());
+                }
+                return;
+            }
+        }
+
+        // Tombol REROLL ($5) (x: 310, y: 605, w: 180, h: 48)
+        if (isPointInRect(mx, my, 310.0f, 605.0f, 180.0f, 48.0f)) {
+            try {
+                engine.rerollShop();
+                showToast("Shop inventory rerolled!");
+            } catch (const GameException& e) {
+                showToast(e.what());
+            }
+            return;
+        }
+
+        // Tombol NEXT ROUND (x: 530, y: 605, w: 180, h: 48)
+        if (isPointInRect(mx, my, 530.0f, 605.0f, 180.0f, 48.0f)) {
+            engine.leaveShop();
+            return;
+        }
+        return;
+    }
+
+    // 6. KLIK PADA LAYAR GAME_OVER
     if (state == "GAME_OVER") {
         if (isPointInRect(mx, my, 390.0f, 440.0f, 160.0f, 48.0f)) {
             engine.startNewRun();
@@ -234,6 +310,8 @@ void GameWindow::handleKey(int key, int /*scancode*/, int action, int /*mods*/) 
             engine.cashOut();
             displayedRoundScore = 0;
             targetRoundScore = 0;
+        } else if (state == "SHOP") {
+            engine.leaveShop();
         } else if (state == "GAME_OVER") {
             engine.startNewRun();
             displayedRoundScore = 0;
@@ -397,6 +475,151 @@ void GameWindow::renderBlindSelect() {
     Renderer::drawButton("MAIN MENU", 432.0f, 600.0f, 160.0f, 40.0f, Color(0.2f, 0.3f, 0.25f), Theme::TEXT_WHITE, hoverBack, true);
 }
 
+// ================= RENDER TOKO (THE SHOP) =================
+void GameWindow::renderShop() {
+    float mx = static_cast<float>(mouseX);
+    float my = static_cast<float>(mouseY);
+
+    // 1. Header Toko
+    Renderer::drawCenteredText("THE SHOP", 512.0f, 40.0f, 3.8f, Theme::GOLD);
+    string moneyStr = "Your Money: $" + to_string(engine.getMoney());
+    Renderer::drawCenteredText(moneyStr, 512.0f, 90.0f, 2.0f, Theme::GOLD);
+
+    // 2. Baris Slot Joker Pemain Saat Ini (di atas)
+    renderJokerSlots();
+
+    // 3. Panel Etalase Kartu Toko
+    Renderer::drawRect(120.0f, 240.0f, 784.0f, 340.0f, Theme::PANEL_BG);
+    Renderer::drawRectOutline(120.0f, 240.0f, 784.0f, 340.0f, 2.0f, Color(0.2f, 0.4f, 0.35f, 0.8f));
+    Renderer::drawCenteredText("JOKERS FOR SALE", 512.0f, 255.0f, 1.6f, Theme::TEXT_WHITE);
+
+    const auto& inventory = engine.getShopInventory();
+    float itemW = 92.0f;
+    float itemH = 135.0f;
+    float spacing = 150.0f;
+    float startX = 512.0f - ((inventory.size() * spacing) * 0.5f) + 30.0f;
+
+    for (size_t i = 0; i < inventory.size(); ++i) {
+        float jx = startX + i * spacing;
+        float jy = 300.0f;
+        bool isHovered = isPointInRect(mx, my, jx, jy, itemW, itemH);
+
+        Renderer::drawJokerCard(inventory[i].getName(), inventory[i].getDescription(), inventory[i].getCost(),
+                                jx, jy, itemW, itemH, isHovered, isHovered ? 1.05f : 1.0f);
+
+        // Tombol BUY
+        float btnW = 90.0f;
+        float btnH = 34.0f;
+        float btnX = jx + (itemW - btnW) * 0.5f;
+        float btnY = jy + itemH + 15.0f;
+        bool canBuy = (engine.getMoney() >= inventory[i].getCost() && static_cast<int>(engine.getJokers().size()) < engine.getMaxJokers());
+        bool hoverBuy = isPointInRect(mx, my, btnX, btnY, btnW, btnH);
+
+        Renderer::drawButton("BUY", btnX, btnY, btnW, btnH, Theme::CHIPS_BLUE, Theme::TEXT_WHITE, hoverBuy, canBuy);
+
+        if (isHovered) {
+            renderJokerTooltip(inventory[i], jx, jy);
+        }
+    }
+
+    if (inventory.empty()) {
+        Renderer::drawCenteredText("SOLD OUT! REROLL FOR MORE JOKERS.", 512.0f, 380.0f, 1.8f, Theme::DEBUFF_GRAY);
+    }
+
+    // 4. Tombol Kontrol Toko: REROLL ($5) & NEXT ROUND
+    float btnY = 605.0f;
+    bool canReroll = (engine.getMoney() >= engine.getRerollCost());
+    bool hoverReroll = isPointInRect(mx, my, 310.0f, btnY, 180.0f, 48.0f);
+    string rerollText = "REROLL ($" + to_string(engine.getRerollCost()) + ")";
+    Renderer::drawButton(rerollText, 310.0f, btnY, 180.0f, 48.0f, Theme::MULT_RED, Theme::TEXT_WHITE, hoverReroll, canReroll);
+
+    bool hoverNext = isPointInRect(mx, my, 530.0f, btnY, 180.0f, 48.0f);
+    Renderer::drawButton("NEXT ROUND", 530.0f, btnY, 180.0f, 48.0f, Theme::GOLD, Theme::TEXT_DARK, hoverNext, true);
+}
+
+// ================= RENDER 5 SLOT JOKER DI ATAS MEJA =================
+void GameWindow::renderJokerSlots() {
+    float mx = static_cast<float>(mouseX);
+    float my = static_cast<float>(mouseY);
+
+    const auto& jokers = engine.getJokers();
+    int maxJokers = engine.getMaxJokers();
+
+    float slotW = 76.0f;
+    float slotH = 110.0f;
+    float spacing = 16.0f;
+    float startX = 310.0f + (680.0f - (maxJokers * slotW + (maxJokers - 1) * spacing)) * 0.5f;
+    float slotY = 30.0f;
+
+    string state = engine.getCurrentStateName();
+    if (state == "SHOP") {
+        startX = 512.0f - (maxJokers * slotW + (maxJokers - 1) * spacing) * 0.5f;
+        slotY = 125.0f;
+    }
+
+    for (int i = 0; i < maxJokers; ++i) {
+        float sx = startX + i * (slotW + spacing);
+
+        if (i < static_cast<int>(jokers.size())) {
+            bool isHovered = isPointInRect(mx, my, sx, slotY, slotW, slotH);
+            Renderer::drawJokerCard(jokers[i].getName(), jokers[i].getDescription(), 0,
+                                    sx, slotY, slotW, slotH, isHovered, isHovered ? 1.06f : 1.0f);
+
+            // Jika di Shop, tampilkan tombol SELL di bawah slot Joker
+            if (state == "SHOP") {
+                float sellW = 70.0f;
+                float sellH = 24.0f;
+                float sellX = sx + (slotW - sellW) * 0.5f;
+                float sellY = slotY + slotH + 6.0f;
+                bool hoverSell = isPointInRect(mx, my, sellX, sellY, sellW, sellH);
+                string sellText = "SELL $" + to_string(jokers[i].getSellValue());
+                Renderer::drawButton(sellText, sellX, sellY, sellW, sellH, Color(0.35f, 0.20f, 0.20f), Theme::GOLD, hoverSell, true);
+            }
+
+            if (isHovered) {
+                renderJokerTooltip(jokers[i], sx, slotY);
+            }
+        } else {
+            // Slot kosong
+            Renderer::drawRect(sx, slotY, slotW, slotH, Color(0.06f, 0.12f, 0.10f, 0.7f));
+            Renderer::drawRectOutline(sx, slotY, slotW, slotH, 1.5f, Color(0.25f, 0.40f, 0.35f, 0.6f));
+            Renderer::drawCenteredText("EMPTY", sx + slotW * 0.5f, slotY + slotH * 0.5f - 8.0f, 1.0f, Color(0.4f, 0.5f, 0.45f, 0.8f));
+        }
+    }
+}
+
+void GameWindow::renderJokerTooltip(const Joker& joker, float x, float y) {
+    float tipW = 220.0f;
+    float tipH = 95.0f;
+    float tipX = x + 38.0f - tipW * 0.5f;
+    tipX = max(20.0f, min(static_cast<float>(windowWidth) - tipW - 20.0f, tipX));
+    float tipY = y - tipH - 12.0f;
+    if (tipY < 15.0f) {
+        tipY = y + 120.0f;
+    }
+
+    Renderer::drawRect(tipX + 4.0f, tipY + 4.0f, tipW, tipH, Color(0.0f, 0.0f, 0.0f, 0.45f));
+    Renderer::drawRect(tipX, tipY, tipW, tipH, Color(0.97f, 0.96f, 0.93f));
+    Renderer::drawRectOutline(tipX, tipY, tipW, tipH, 2.5f, Theme::GOLD);
+
+    // Title Badge
+    Renderer::drawRect(tipX + 6.0f, tipY + 6.0f, tipW - 12.0f, 22.0f, Theme::MULT_RED);
+    Renderer::drawCenteredText(joker.getName(), tipX + tipW * 0.5f, tipY + 10.0f, 1.25f, Theme::TEXT_WHITE);
+
+    // Divider
+    Renderer::drawRect(tipX + 10.0f, tipY + 34.0f, tipW - 20.0f, 1.0f, Color(0.75f, 0.75f, 0.70f));
+
+    // Description
+    Renderer::drawCenteredText(joker.getDescription(), tipX + tipW * 0.5f, tipY + 45.0f, 1.05f, Theme::TEXT_DARK);
+
+    // Rarity Badge
+    string rarityStr = (joker.getRarity() == JokerRarity::RARE) ? "RARE" : 
+                       ((joker.getRarity() == JokerRarity::UNCOMMON) ? "UNCOMMON" : "COMMON");
+    Color rarityCol = (joker.getRarity() == JokerRarity::RARE) ? Theme::MULT_RED : 
+                      ((joker.getRarity() == JokerRarity::UNCOMMON) ? Theme::CHIPS_BLUE : Color(0.3f, 0.6f, 0.4f));
+    Renderer::drawCenteredText(rarityStr, tipX + tipW * 0.5f, tipY + 74.0f, 1.0f, rarityCol);
+}
+
 // ================= RENDER GAMEPLAY RONDE =================
 void GameWindow::renderHUD() {
     Blind blind = engine.getCurrentBlind();
@@ -526,7 +749,22 @@ void GameWindow::startScoringSequence() {
     }
 
     ScoringEngine se;
-    activeScoreResult = se.calculateScore(selected);
+    ScoreResult baseResult = se.calculateScore(selected);
+
+    // Hitung efek Joker untuk sekuens animasi
+    int bonusChips = 0;
+    int bonusMult = 0;
+    ScoringContext ctx{
+        selected,
+        baseResult.scoringCards,
+        engine.getDeckRemainingCount(),
+        engine.getDiscardsRemaining()
+    };
+    for (const auto& joker : engine.getJokers()) {
+        joker.trigger(ctx, bonusChips, bonusMult);
+    }
+
+    activeScoreResult = se.calculateScore(selected, bonusChips, bonusMult);
 
     scoringAnimatedCards.clear();
     floatingTexts.clear();
@@ -802,8 +1040,22 @@ void GameWindow::renderScoringPreview() {
         for (const auto& c : handRes.scoringCards) {
             cardChips += c.getBaseChips();
         }
-        int totalC = base.baseChips + cardChips;
-        int totalM = base.baseMult;
+
+        // Hitung efek sinergi Joker pada perkiraan skor
+        int bonusChips = 0;
+        int bonusMult = 0;
+        ScoringContext ctx{
+            selected,
+            handRes.scoringCards,
+            engine.getDeckRemainingCount(),
+            engine.getDiscardsRemaining()
+        };
+        for (const auto& joker : engine.getJokers()) {
+            joker.trigger(ctx, bonusChips, bonusMult);
+        }
+
+        int totalC = base.baseChips + cardChips + bonusChips;
+        int totalM = max(1, base.baseMult + bonusMult);
         long long estScore = static_cast<long long>(totalC) * totalM;
 
         Renderer::drawText(handRes.handName, 530.0f, 60.0f, 2.6f, Theme::GOLD);
@@ -1100,6 +1352,7 @@ void GameWindow::renderCards() {
 void GameWindow::renderRoundGameplay() {
     renderHUD();
     renderScoringPreview();
+    renderJokerSlots();
     renderControls();
     renderCards();
     renderCardTooltip(0.016f); // Update dan render tooltip
@@ -1134,6 +1387,8 @@ void GameWindow::renderUI(float dt) {
         renderMainMenu();
     } else if (state == "BLIND_SELECT") {
         renderBlindSelect();
+    } else if (state == "SHOP") {
+        renderShop();
     } else {
         updateCardAnimations(dt);
         updateScoringSequence(dt);

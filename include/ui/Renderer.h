@@ -47,6 +47,7 @@ public:
 
     // Komponen Game Balatro
     static void drawCard(const Card& card, float x, float y, float w, float h, bool isHovered, float elevation = 0.0f);
+    static void drawJokerCard(const string& name, const string& desc, int cost, float x, float y, float w, float h, bool isHovered, float scale = 1.0f);
     static void drawSuitIcon(Suit suit, float x, float y, float size, Color color);
     static void drawSuitIconInverted(Suit suit, float rightX, float bottomY, float size, Color color);
     static void drawButton(const string& text, float x, float y, float w, float h, 

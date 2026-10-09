@@ -22,6 +22,10 @@ public:
     virtual void discard(GameEngine& /*engine*/);
     virtual void toggleSelectCard(GameEngine& /*engine*/, int /*index*/);
     virtual void cashOut(GameEngine& /*engine*/);
+    virtual void buyJoker(GameEngine& /*engine*/, int /*shopIndex*/);
+    virtual void sellJoker(GameEngine& /*engine*/, int /*jokerIndex*/);
+    virtual void rerollShop(GameEngine& /*engine*/);
+    virtual void leaveShop(GameEngine& /*engine*/);
     virtual void toMainMenu(GameEngine& /*engine*/);
 };
 
@@ -49,7 +53,7 @@ public:
     void toggleSelectCard(GameEngine& engine, int index) override;
 };
 
-// 4. State Ronde Menang (Target Skor Tercapai -> Cash Out)
+// 4. State Ronde Menang (Target Skor Tercapai -> Cash Out ke Shop)
 class RoundWonState : public IGameState {
 public:
     string getStateName() const override { return "ROUND_WON"; }
@@ -57,7 +61,18 @@ public:
     void cashOut(GameEngine& engine) override;
 };
 
-// 5. State Kalah / Game Over
+// 5. State Toko (The Shop: Beli/Jual Joker, Reroll)
+class ShopState : public IGameState {
+public:
+    string getStateName() const override { return "SHOP"; }
+    void onEnter(GameEngine& engine) override;
+    void buyJoker(GameEngine& engine, int shopIndex) override;
+    void sellJoker(GameEngine& engine, int jokerIndex) override;
+    void rerollShop(GameEngine& engine) override;
+    void leaveShop(GameEngine& engine) override;
+};
+
+// 6. State Kalah / Game Over
 class GameOverState : public IGameState {
 public:
     string getStateName() const override { return "GAME_OVER"; }

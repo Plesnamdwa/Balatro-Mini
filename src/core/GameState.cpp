@@ -29,6 +29,22 @@ void IGameState::cashOut(GameEngine& /*engine*/) {
     throw InvalidActionException("Cash Out", "Cannot cash out from state: " + getStateName());
 }
 
+void IGameState::buyJoker(GameEngine& /*engine*/, int /*shopIndex*/) {
+    throw InvalidActionException("Buy Joker", "Cannot buy joker from state: " + getStateName());
+}
+
+void IGameState::sellJoker(GameEngine& /*engine*/, int /*jokerIndex*/) {
+    throw InvalidActionException("Sell Joker", "Cannot sell joker from state: " + getStateName());
+}
+
+void IGameState::rerollShop(GameEngine& /*engine*/) {
+    throw InvalidActionException("Reroll Shop", "Cannot reroll shop from state: " + getStateName());
+}
+
+void IGameState::leaveShop(GameEngine& /*engine*/) {
+    throw InvalidActionException("Leave Shop", "Cannot leave shop from state: " + getStateName());
+}
+
 void IGameState::toMainMenu(GameEngine& engine) {
     engine.changeState(make_unique<MainMenuState>());
 }
@@ -69,7 +85,28 @@ void RoundWonState::cashOut(GameEngine& engine) {
     engine.executeCashOutLogic();
 }
 
-// ================= 5. GameOverState =================
+// ================= 5. ShopState =================
+void ShopState::onEnter(GameEngine& engine) {
+    engine.refreshShopInventory();
+}
+
+void ShopState::buyJoker(GameEngine& engine, int shopIndex) {
+    engine.executeBuyJokerLogic(shopIndex);
+}
+
+void ShopState::sellJoker(GameEngine& engine, int jokerIndex) {
+    engine.executeSellJokerLogic(jokerIndex);
+}
+
+void ShopState::rerollShop(GameEngine& engine) {
+    engine.executeRerollShopLogic();
+}
+
+void ShopState::leaveShop(GameEngine& engine) {
+    engine.executeLeaveShopLogic();
+}
+
+// ================= 6. GameOverState =================
 void GameOverState::startNewRun(GameEngine& engine) {
     engine.executeStartNewRunLogic();
 }

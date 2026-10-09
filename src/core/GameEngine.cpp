@@ -1,10 +1,12 @@
 #include "../../include/core/GameEngine.h"
 #include <algorithm>
+#include <random>
 
 using namespace std;
 
 GameEngine::GameEngine()
-    : maxHandSize(8), handsRemaining(4), discardsRemaining(3), currentScore(0), money(4) {
+    : maxHandSize(8), handsRemaining(4), discardsRemaining(3), currentScore(0), money(4),
+      maxJokers(5), rerollCost(5) {
     toMainMenu();
 }
 
@@ -42,6 +44,7 @@ void GameEngine::executeStartNewRunLogic() {
     StandardDeckFactory factory;
     deck = factory.createDeck();
     hand.clear();
+    jokers.clear();
     blindManager.reset();
     money = 4;
     lastScoreResult = {};
@@ -74,8 +77,8 @@ void GameEngine::executeCashOutLogic() {
     addMoney(getCurrentBlind().getRewardMoney());
     // Lanjut ke blind berikutnya (Small -> Big -> Boss -> Ante++)
     blindManager.advanceBlind();
-    // Kembali ke layar pemilihan Blind
-    changeState(make_unique<BlindSelectState>());
+    // Berpindah ke layar Toko (The Shop)
+    changeState(make_unique<ShopState>());
 }
 
 void GameEngine::executeToggleSelectLogic(int index) {
@@ -107,12 +110,29 @@ void GameEngine::executePlayHandLogic() {
         throw InvalidCardCountException(static_cast<int>(selected.size()), 5);
     }
 
-    // 1. Hitung skor
-    lastScoreResult = scoringEngine.calculateScore(selected);
+    // 1. Evaluasi dasar poker
+    ScoreResult baseResult = scoringEngine.calculateScore(selected);
+
+    // 2. Evaluasi Efek Strategy dari Jokers
+    int bonusChips = 0;
+    int bonusMult = 0;
+    ScoringContext ctx{
+        selected,
+        baseResult.scoringCards,
+        deck.getRemainingCount(),
+        discardsRemaining
+    };
+
+    for (const auto& joker : jokers) {
+        joker.trigger(ctx, bonusChips, bonusMult);
+    }
+
+    // 3. Hitung skor akhir dengan sinergi Joker
+    lastScoreResult = scoringEngine.calculateScore(selected, bonusChips, bonusMult);
     currentScore += lastScoreResult.finalScore;
     handsRemaining--;
 
-    // 2. Buang kartu yang dimainkan
+    // 4. Buang kartu yang dimainkan
     vector<Card> remainingHand;
     for (const auto& c : hand) {
         if (c.isSelected()) {
@@ -123,10 +143,10 @@ void GameEngine::executePlayHandLogic() {
     }
     hand = remainingHand;
 
-    // 3. Tarik kartu baru
+    // 5. Tarik kartu baru
     drawUpToHandSize();
 
-    // 4. Evaluasi Kondisi Menang / Kalah
+    // 6. Evaluasi Kondisi Menang / Kalah
     if (currentScore >= getCurrentBlind().getTargetScore()) {
         changeState(make_unique<RoundWonState>());
     } else if (handsRemaining <= 0) {
@@ -162,6 +182,76 @@ void GameEngine::executeDiscardLogic() {
     drawUpToHandSize();
 }
 
+void GameEngine::refreshShopInventory() {
+    shopInventory.clear();
+    vector<Joker> catalog = JokerFactory::createAllJokers();
+
+    // Saring Joker yang sudah dimiliki pemain agar tidak duplikat
+    vector<Joker> available;
+    for (const auto& j : catalog) {
+        bool owned = false;
+        for (const auto& oj : jokers) {
+            if (oj.getId() == j.getId()) {
+                owned = true;
+                break;
+            }
+        }
+        if (!owned) {
+            available.push_back(j);
+        }
+    }
+
+    // Acak dan pilih hingga 3 Joker
+    static random_device rd;
+    static mt19937 g(rd());
+    shuffle(available.begin(), available.end(), g);
+
+    int count = min(3, static_cast<int>(available.size()));
+    for (int i = 0; i < count; ++i) {
+        shopInventory.push_back(available[i]);
+    }
+}
+
+void GameEngine::executeBuyJokerLogic(int shopIndex) {
+    if (shopIndex < 0 || shopIndex >= static_cast<int>(shopInventory.size())) {
+        throw GameException("Invalid shop item index!");
+    }
+    if (static_cast<int>(jokers.size()) >= maxJokers) {
+        throw GameException("Joker slots full! Max " + to_string(maxJokers) + " Jokers.");
+    }
+
+    const Joker& target = shopInventory[shopIndex];
+    if (money < target.getCost()) {
+        throw GameException("Not enough money! Cost: $" + to_string(target.getCost()));
+    }
+
+    money -= target.getCost();
+    jokers.push_back(target);
+    shopInventory.erase(shopInventory.begin() + shopIndex);
+}
+
+void GameEngine::executeSellJokerLogic(int jokerIndex) {
+    if (jokerIndex < 0 || jokerIndex >= static_cast<int>(jokers.size())) {
+        throw GameException("Invalid joker index to sell!");
+    }
+
+    int sellVal = jokers[jokerIndex].getSellValue();
+    money += sellVal;
+    jokers.erase(jokers.begin() + jokerIndex);
+}
+
+void GameEngine::executeRerollShopLogic() {
+    if (money < rerollCost) {
+        throw GameException("Not enough money to reroll! Cost: $" + to_string(rerollCost));
+    }
+    money -= rerollCost;
+    refreshShopInventory();
+}
+
+void GameEngine::executeLeaveShopLogic() {
+    changeState(make_unique<BlindSelectState>());
+}
+
 // Delegasi Aksi Pemain ke State Pattern
 void GameEngine::startNewRun() {
     if (currentState) currentState->startNewRun(*this);
@@ -185,6 +275,22 @@ void GameEngine::toggleSelectCard(int index) {
 
 void GameEngine::cashOut() {
     if (currentState) currentState->cashOut(*this);
+}
+
+void GameEngine::buyJoker(int shopIndex) {
+    if (currentState) currentState->buyJoker(*this, shopIndex);
+}
+
+void GameEngine::sellJoker(int jokerIndex) {
+    if (currentState) currentState->sellJoker(*this, jokerIndex);
+}
+
+void GameEngine::rerollShop() {
+    if (currentState) currentState->rerollShop(*this);
+}
+
+void GameEngine::leaveShop() {
+    if (currentState) currentState->leaveShop(*this);
 }
 
 // Getters & Helpers
@@ -249,6 +355,17 @@ int GameEngine::getDiscardPileCount() const {
     return deck.getDiscardCount();
 }
 
+const vector<Joker>& GameEngine::getJokers() const { return jokers; }
+int GameEngine::getMaxJokers() const { return maxJokers; }
+const vector<Joker>& GameEngine::getShopInventory() const { return shopInventory; }
+int GameEngine::getRerollCost() const { return rerollCost; }
+
 void GameEngine::addMoney(int amount) {
     money += amount;
+}
+
+void GameEngine::addJoker(const Joker& j) {
+    if (static_cast<int>(jokers.size()) < maxJokers) {
+        jokers.push_back(j);
+    }
 }

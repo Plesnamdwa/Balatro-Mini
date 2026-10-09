@@ -7,6 +7,7 @@
 #include "Blind.h"
 #include "ScoringEngine.h"
 #include "GameState.h"
+#include "Joker.h"
 #include "Exceptions.h"
 #include <vector>
 #include <memory>
@@ -27,6 +28,12 @@ private:
     ScoringEngine scoringEngine;
     ScoreResult lastScoreResult;
 
+    // Sistem Joker & Toko
+    vector<Joker> jokers;
+    int maxJokers;
+    vector<Joker> shopInventory;
+    int rerollCost;
+
     unique_ptr<IGameState> currentState;
 
     void drawUpToHandSize();
@@ -45,6 +52,10 @@ public:
     void discard();
     void toggleSelectCard(int index);
     void cashOut();
+    void buyJoker(int shopIndex);
+    void sellJoker(int jokerIndex);
+    void rerollShop();
+    void leaveShop();
     void toMainMenu();
 
     // Logika Internal yang dipanggil oleh State
@@ -54,6 +65,11 @@ public:
     void executeDiscardLogic();
     void executeToggleSelectLogic(int index);
     void executeCashOutLogic();
+    void executeBuyJokerLogic(int shopIndex);
+    void executeSellJokerLogic(int jokerIndex);
+    void executeRerollShopLogic();
+    void executeLeaveShopLogic();
+    void refreshShopInventory();
 
     // Getters & Helpers
     const vector<Card>& getHand() const;
@@ -74,7 +90,13 @@ public:
     int getDeckRemainingCount() const;
     int getDiscardPileCount() const;
 
+    const vector<Joker>& getJokers() const;
+    int getMaxJokers() const;
+    const vector<Joker>& getShopInventory() const;
+    int getRerollCost() const;
+
     void addMoney(int amount);
+    void addJoker(const Joker& j);
 };
 
 #endif // GAME_ENGINE_H

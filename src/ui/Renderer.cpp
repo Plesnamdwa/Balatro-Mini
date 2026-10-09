@@ -66,6 +66,26 @@ static const char* KING_PIXELS[16] = {
     "..BBBBBBBB...."
 };
 
+// 14x16 Pixel Art Bitmap untuk Topi & Wajah Joker Khas Balatro
+static const char* JOKER_PIXELS[16] = {
+    "...RR...UU....",
+    "..RRRR.UUUU...",
+    ".RR.RRGUU.UU..",
+    ".RR.RRGUU.UU..",
+    "..RRRR.UUUU...",
+    "...GGGGGGGG...",
+    "..GSSSSSSSSG..",
+    "..GSBSGSBSGG..",
+    "..GSSSSSSSSG..",
+    "..GSSSRRSSSG..",
+    "...GSSSSSSG...",
+    "...GGGGGGGG...",
+    "..RRWWGGWWUU..",
+    ".RRRWWGGWWUUU.",
+    ".RRRWWGGWWUUU.",
+    "..RRWWGGWWUU.."
+};
+
 // 11x11 Pixel Art Bitmaps untuk 4 Simbol Kartu (Suits)
 // Simbol: . = transparan, X = piksel aktif berwarna
 static const char* SUIT_HEARTS[11] = {
@@ -490,6 +510,59 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
     if (card.isDebuffed()) {
         drawRect(x, renderY + h - 34.0f, w, 14.0f, Color(0.2f, 0.2f, 0.2f, 0.85f));
         drawText("DEBUFF", x + 12.0f, renderY + h - 32.0f, 1.0f, Theme::MULT_RED);
+    }
+}
+
+void Renderer::drawJokerCard(const string& name, const string& /*desc*/, int cost, 
+                             float x, float y, float w, float h, bool isHovered, float scale) {
+    float actualW = w * scale;
+    float actualH = h * scale;
+    float rx = x - (actualW - w) * 0.5f;
+    float ry = y - (actualH - h) * 0.5f;
+
+    // 1. Drop shadow
+    float shadowDist = isHovered ? 8.0f : 4.0f;
+    drawRect(rx + shadowDist * 0.6f, ry + shadowDist, actualW, actualH, Color(0.0f, 0.0f, 0.0f, 0.35f));
+
+    // 2. Joker Card Body (Krem Elegan khas kartu tarot/joker Balatro)
+    drawRect(rx, ry, actualW, actualH, Color(0.95f, 0.94f, 0.88f));
+
+    // 3. Border (Merah/Emas cerah saat hover)
+    if (isHovered) {
+        drawRectOutline(rx, ry, actualW, actualH, 3.5f, Theme::GOLD);
+    } else {
+        drawRectOutline(rx, ry, actualW, actualH, 2.0f, Color(0.40f, 0.22f, 0.20f));
+    }
+
+    // 4. Header Badge Joker
+    float badgeW = actualW - 12.0f;
+    float badgeH = 20.0f;
+    float badgeX = rx + 6.0f;
+    float badgeY = ry + 6.0f;
+    drawRect(badgeX, badgeY, badgeW, badgeH, Color(0.85f, 0.20f, 0.20f, 0.90f));
+    drawRectOutline(badgeX, badgeY, badgeW, badgeH, 1.0f, Color(1.0f, 0.85f, 0.40f));
+    drawCenteredText("JOKER", badgeX + badgeW * 0.5f, badgeY + 4.0f, 1.1f, Theme::TEXT_WHITE);
+
+    // 5. Potret Piksel Art Joker di Tengah
+    float boxW = actualW - 20.0f;
+    float boxH = actualH - 52.0f;
+    float boxX = rx + 10.0f;
+    float boxY = ry + 30.0f;
+    drawRect(boxX, boxY, boxW, boxH, Color(0.88f, 0.87f, 0.82f));
+    drawRectOutline(boxX, boxY, boxW, boxH, 1.2f, Color(0.70f, 0.68f, 0.60f));
+
+    float gridStartX = boxX + (boxW - 42.0f) * 0.5f;
+    float gridStartY = boxY + (boxH - 48.0f) * 0.5f;
+    drawPixelArtGrid(gridStartX, gridStartY, 3.0f, JOKER_PIXELS, 16, 14, Suit::HEARTS, false);
+
+    // 6. Label Nama Joker di Bawah Potret
+    float nameScale = (name.length() > 10) ? 0.95f : 1.1f;
+    drawCenteredText(name, rx + actualW * 0.5f, ry + actualH - 18.0f, nameScale, Theme::TEXT_DARK);
+
+    // 7. Harga Beli (Jika ada dalam konteks toko)
+    if (cost > 0) {
+        string costStr = "$" + to_string(cost);
+        drawText(costStr, rx + actualW - 24.0f, ry + 8.0f, 1.1f, Theme::GOLD);
     }
 }
 

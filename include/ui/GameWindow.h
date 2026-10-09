@@ -113,6 +113,7 @@ private:
     void spawnFloatingText(const string& text, float x, float y, Color col, float scale = 1.6f);
     void renderFloatingTexts();
     void renderCardTooltip(float dt);
+    void renderJokerTooltip(const Joker& joker, float x, float y);
 
     void renderUI(float dt);
 
@@ -122,8 +123,12 @@ private:
     // Layar Pemilihan Blind (Small, Big, Boss Blind)
     void renderBlindSelect();
 
+    // Layar Toko (The Shop)
+    void renderShop();
+
     // Layar Gameplay Ronde
     void renderRoundGameplay();
+    void renderJokerSlots();
     void renderHUD();
     void renderCards();
     void renderControls();
