@@ -545,13 +545,15 @@ void GameWindow::renderJokerSlots() {
     const auto& jokers = engine.getJokers();
     int maxJokers = engine.getMaxJokers();
 
-    float slotW = 76.0f;
-    float slotH = 110.0f;
-    float spacing = 16.0f;
-    float startX = 310.0f + (680.0f - (maxJokers * slotW + (maxJokers - 1) * spacing)) * 0.5f;
-    float slotY = 30.0f;
-
     string state = engine.getCurrentStateName();
+
+    float slotW = (state == "SHOP") ? 76.0f : 66.0f;
+    float slotH = (state == "SHOP") ? 110.0f : 86.0f;
+    float spacing = (state == "SHOP") ? 16.0f : 12.0f;
+
+    float startX = 310.0f + (680.0f - (maxJokers * slotW + (maxJokers - 1) * spacing)) * 0.5f;
+    float slotY = 22.0f;
+
     if (state == "SHOP") {
         startX = 512.0f - (maxJokers * slotW + (maxJokers - 1) * spacing) * 0.5f;
         slotY = 125.0f;
@@ -563,7 +565,7 @@ void GameWindow::renderJokerSlots() {
         if (i < static_cast<int>(jokers.size())) {
             bool isHovered = isPointInRect(mx, my, sx, slotY, slotW, slotH);
             Renderer::drawJokerCard(jokers[i].getName(), jokers[i].getDescription(), 0,
-                                    sx, slotY, slotW, slotH, isHovered, isHovered ? 1.06f : 1.0f);
+                                    sx, slotY, slotW, slotH, isHovered, isHovered ? 1.05f : 1.0f);
 
             // Jika di Shop, tampilkan tombol SELL di bawah slot Joker
             if (state == "SHOP") {
@@ -583,7 +585,7 @@ void GameWindow::renderJokerSlots() {
             // Slot kosong
             Renderer::drawRect(sx, slotY, slotW, slotH, Color(0.06f, 0.12f, 0.10f, 0.7f));
             Renderer::drawRectOutline(sx, slotY, slotW, slotH, 1.5f, Color(0.25f, 0.40f, 0.35f, 0.6f));
-            Renderer::drawCenteredText("EMPTY", sx + slotW * 0.5f, slotY + slotH * 0.5f - 8.0f, 1.0f, Color(0.4f, 0.5f, 0.45f, 0.8f));
+            Renderer::drawCenteredText("EMPTY", sx + slotW * 0.5f, slotY + slotH * 0.5f - 6.0f, 0.9f, Color(0.4f, 0.5f, 0.45f, 0.8f));
         }
     }
 }
@@ -591,12 +593,9 @@ void GameWindow::renderJokerSlots() {
 void GameWindow::renderJokerTooltip(const Joker& joker, float x, float y) {
     float tipW = 220.0f;
     float tipH = 95.0f;
-    float tipX = x + 38.0f - tipW * 0.5f;
+    float tipX = x + 33.0f - tipW * 0.5f;
     tipX = max(20.0f, min(static_cast<float>(windowWidth) - tipW - 20.0f, tipX));
-    float tipY = y - tipH - 12.0f;
-    if (tipY < 15.0f) {
-        tipY = y + 120.0f;
-    }
+    float tipY = y + 96.0f; // Muncul di bawah slot Joker agar tidak keluar layar atas
 
     Renderer::drawRect(tipX + 4.0f, tipY + 4.0f, tipW, tipH, Color(0.0f, 0.0f, 0.0f, 0.45f));
     Renderer::drawRect(tipX, tipY, tipW, tipH, Color(0.97f, 0.96f, 0.93f));
@@ -774,7 +773,7 @@ void GameWindow::startScoringSequence() {
     size_t count = selected.size();
     float totalW = count * cardW + (count - 1) * spacing;
     float startCenterX = 310.0f + (680.0f - totalW) * 0.5f;
-    float centerTargetY = 245.0f;
+    float centerTargetY = 235.0f;
 
     const auto& hand = engine.getHand();
     for (size_t i = 0; i < count; ++i) {
@@ -953,40 +952,40 @@ void GameWindow::updateScoringSequence(float dt) {
 }
 
 void GameWindow::renderActiveScoringDisplay() {
-    // 1. Nama Hand Poker Besar di Atas
-    Renderer::drawCenteredText(activeScoreResult.handName, 650.0f, 55.0f, 2.6f, Theme::GOLD);
+    // 1. Nama Hand Poker di Bawah Baris Joker
+    Renderer::drawCenteredText(activeScoreResult.handName, 650.0f, 116.0f, 2.0f, Theme::GOLD);
 
     // 2. Kotak CHIPS Berdenyut (Biru)
-    float bw = 180.0f * chipsBoxScale;
-    float bh = 85.0f * chipsBoxScale;
-    float bx = 510.0f - bw * 0.5f;
-    float by = 145.0f - bh * 0.5f;
+    float bw = 140.0f * chipsBoxScale;
+    float bh = 54.0f * chipsBoxScale;
+    float bx = 500.0f - bw * 0.5f;
+    float by = 168.0f - bh * 0.5f;
 
     Renderer::drawRect(bx, by, bw, bh, Theme::CHIPS_BLUE);
-    Renderer::drawRectOutline(bx, by, bw, bh, 3.0f, (chipsBoxScale > 1.05f) ? Color(1.0f, 1.0f, 1.0f, 1.0f) : Color(1, 1, 1, 0.8f));
-    Renderer::drawCenteredText("CHIPS", bx + bw * 0.5f, by + 10.0f, 1.4f, Theme::TEXT_WHITE);
+    Renderer::drawRectOutline(bx, by, bw, bh, 2.5f, (chipsBoxScale > 1.05f) ? Color(1.0f, 1.0f, 1.0f, 1.0f) : Color(1, 1, 1, 0.8f));
+    Renderer::drawCenteredText("CHIPS", bx + bw * 0.5f, by + 6.0f, 1.1f, Theme::TEXT_WHITE);
     string cStr = to_string(animChips);
-    Renderer::drawCenteredText(cStr, bx + bw * 0.5f, by + 35.0f, 2.8f, Theme::TEXT_WHITE);
+    Renderer::drawCenteredText(cStr, bx + bw * 0.5f, by + 24.0f, 2.2f, Theme::TEXT_WHITE);
 
     // 3. Simbol Perkalian "X"
-    Renderer::drawCenteredText("X", 650.0f, 140.0f, 3.5f, Theme::TEXT_WHITE);
+    Renderer::drawCenteredText("X", 650.0f, 155.0f, 2.6f, Theme::TEXT_WHITE);
 
     // 4. Kotak MULT Berdenyut (Merah)
-    float mw = 180.0f * multBoxScale;
-    float mh = 85.0f * multBoxScale;
-    float mx = 790.0f - mw * 0.5f;
-    float my = 145.0f - mh * 0.5f;
+    float mw = 140.0f * multBoxScale;
+    float mh = 54.0f * multBoxScale;
+    float mx = 800.0f - mw * 0.5f;
+    float my = 168.0f - mh * 0.5f;
 
     Renderer::drawRect(mx, my, mw, mh, Theme::MULT_RED);
-    Renderer::drawRectOutline(mx, my, mw, mh, 3.0f, (multBoxScale > 1.05f) ? Color(1.0f, 1.0f, 1.0f, 1.0f) : Color(1, 1, 1, 0.8f));
-    Renderer::drawCenteredText("MULT", mx + mw * 0.5f, my + 10.0f, 1.4f, Theme::TEXT_WHITE);
+    Renderer::drawRectOutline(mx, my, mw, mh, 2.5f, (multBoxScale > 1.05f) ? Color(1.0f, 1.0f, 1.0f, 1.0f) : Color(1, 1, 1, 0.8f));
+    Renderer::drawCenteredText("MULT", mx + mw * 0.5f, my + 6.0f, 1.1f, Theme::TEXT_WHITE);
     string mStr = to_string(animMult);
-    Renderer::drawCenteredText(mStr, mx + mw * 0.5f, my + 35.0f, 2.8f, Theme::TEXT_WHITE);
+    Renderer::drawCenteredText(mStr, mx + mw * 0.5f, my + 24.0f, 2.2f, Theme::TEXT_WHITE);
 
     // 5. Total Skor yang Terhitung saat Slam
     if (scoringStep == ScoringStep::FINAL_SLAM || scoringStep == ScoringStep::SCORE_TICK) {
         string totalStr = "SCORED +" + to_string(animFinalScore) + " PTS!";
-        Renderer::drawCenteredText(totalStr, 650.0f, 215.0f, 2.2f, Theme::GOLD);
+        Renderer::drawCenteredText(totalStr, 650.0f, 204.0f, 2.0f, Theme::GOLD);
     }
 
     // 6. Kartu-kartu yang Dimainkan di Meja Tengah
@@ -1005,23 +1004,23 @@ void GameWindow::renderActiveScoringDisplay() {
 }
 
 void GameWindow::renderScoringPreview() {
-    Renderer::drawRect(310.0f, 25.0f, 680.0f, 380.0f, Theme::PANEL_BG);
-    Renderer::drawRectOutline(310.0f, 25.0f, 680.0f, 380.0f, 2.0f, Color(0.2f, 0.4f, 0.35f, 0.8f));
+    Renderer::drawRect(310.0f, 15.0f, 680.0f, 395.0f, Theme::PANEL_BG);
+    Renderer::drawRectOutline(310.0f, 15.0f, 680.0f, 395.0f, 2.0f, Color(0.2f, 0.4f, 0.35f, 0.8f));
 
     string state = engine.getCurrentStateName();
 
     if (state == "ROUND_WON") {
-        Renderer::drawText("ROUND CLEARED!", 460.0f, 120.0f, 3.2f, Theme::GOLD);
+        Renderer::drawText("ROUND CLEARED!", 460.0f, 145.0f, 3.2f, Theme::GOLD);
         string winSub = "Target reached! Blind reward $" + to_string(engine.getCurrentBlind().getRewardMoney()) + " earned.";
-        Renderer::drawText(winSub, 400.0f, 175.0f, 1.5f, Theme::TEXT_WHITE);
-        Renderer::drawText("Click 'CASH OUT' to collect and return to Blind Select", 350.0f, 210.0f, 1.4f, Theme::CHIPS_BLUE);
+        Renderer::drawText(winSub, 400.0f, 200.0f, 1.5f, Theme::TEXT_WHITE);
+        Renderer::drawText("Click 'CASH OUT' to enter THE SHOP", 440.0f, 235.0f, 1.5f, Theme::CHIPS_BLUE);
         return;
     }
 
     if (state == "GAME_OVER") {
-        Renderer::drawText("GAME OVER!", 480.0f, 120.0f, 3.5f, Theme::MULT_RED);
-        Renderer::drawText("You ran out of hands before beating the blind.", 390.0f, 175.0f, 1.5f, Theme::TEXT_WHITE);
-        Renderer::drawText("Click 'TRY AGAIN' or return to 'MAIN MENU'", 410.0f, 210.0f, 1.5f, Theme::GOLD);
+        Renderer::drawText("GAME OVER!", 480.0f, 145.0f, 3.5f, Theme::MULT_RED);
+        Renderer::drawText("You ran out of hands before beating the blind.", 390.0f, 200.0f, 1.5f, Theme::TEXT_WHITE);
+        Renderer::drawText("Click 'TRY AGAIN' or return to 'MAIN MENU'", 410.0f, 235.0f, 1.5f, Theme::GOLD);
         return;
     }
 
@@ -1058,37 +1057,42 @@ void GameWindow::renderScoringPreview() {
         int totalM = max(1, base.baseMult + bonusMult);
         long long estScore = static_cast<long long>(totalC) * totalM;
 
-        Renderer::drawText(handRes.handName, 530.0f, 60.0f, 2.6f, Theme::GOLD);
+        // 1. Nama Hand di y: 116px
+        Renderer::drawCenteredText(handRes.handName, 650.0f, 116.0f, 2.0f, Theme::GOLD);
 
-        Renderer::drawRect(420.0f, 120.0f, 180.0f, 85.0f, Theme::CHIPS_BLUE);
-        Renderer::drawRectOutline(420.0f, 120.0f, 180.0f, 85.0f, 3.0f, Color(1,1,1,0.8f));
-        Renderer::drawText("CHIPS", 475.0f, 130.0f, 1.4f, Theme::TEXT_WHITE);
+        // 2. Kotak CHIPS
+        Renderer::drawRect(430.0f, 142.0f, 140.0f, 54.0f, Theme::CHIPS_BLUE);
+        Renderer::drawRectOutline(430.0f, 142.0f, 140.0f, 54.0f, 2.5f, Color(1,1,1,0.8f));
+        Renderer::drawCenteredText("CHIPS", 500.0f, 148.0f, 1.1f, Theme::TEXT_WHITE);
         string cStr = to_string(totalC);
-        Renderer::drawText(cStr, 480.0f, 155.0f, 2.8f, Theme::TEXT_WHITE);
+        Renderer::drawCenteredText(cStr, 500.0f, 166.0f, 2.2f, Theme::TEXT_WHITE);
 
-        Renderer::drawText("X", 630.0f, 145.0f, 3.5f, Theme::TEXT_WHITE);
+        // 3. Simbol "X"
+        Renderer::drawCenteredText("X", 650.0f, 155.0f, 2.6f, Theme::TEXT_WHITE);
 
-        Renderer::drawRect(680.0f, 120.0f, 180.0f, 85.0f, Theme::MULT_RED);
-        Renderer::drawRectOutline(680.0f, 120.0f, 180.0f, 85.0f, 3.0f, Color(1,1,1,0.8f));
-        Renderer::drawText("MULT", 740.0f, 130.0f, 1.4f, Theme::TEXT_WHITE);
+        // 4. Kotak MULT
+        Renderer::drawRect(730.0f, 142.0f, 140.0f, 54.0f, Theme::MULT_RED);
+        Renderer::drawRectOutline(730.0f, 142.0f, 140.0f, 54.0f, 2.5f, Color(1,1,1,0.8f));
+        Renderer::drawCenteredText("MULT", 800.0f, 148.0f, 1.1f, Theme::TEXT_WHITE);
         string mStr = to_string(totalM);
-        Renderer::drawText(mStr, 755.0f, 155.0f, 2.8f, Theme::TEXT_WHITE);
+        Renderer::drawCenteredText(mStr, 800.0f, 166.0f, 2.2f, Theme::TEXT_WHITE);
 
+        // 5. Perkiraan Skor & Hint
         string estStr = "Estimated Score: " + to_string(estScore);
-        Renderer::drawText(estStr, 510.0f, 235.0f, 1.8f, Theme::TEXT_WHITE);
+        Renderer::drawCenteredText(estStr, 650.0f, 214.0f, 1.6f, Theme::TEXT_WHITE);
 
         string hintStr = to_string(selected.size()) + " card(s) selected (" + 
                          to_string(handRes.scoringCards.size()) + " scoring cards)";
-        Renderer::drawText(hintStr, 480.0f, 275.0f, 1.4f, Color(0.8f, 0.8f, 0.8f, 0.9f));
+        Renderer::drawCenteredText(hintStr, 650.0f, 246.0f, 1.25f, Color(0.8f, 0.8f, 0.8f, 0.9f));
     } else {
-        Renderer::drawText("SELECT 1 - 5 CARDS", 480.0f, 130.0f, 2.4f, Theme::TEXT_WHITE);
-        Renderer::drawText("Click cards below or press [1 - 8] on keyboard", 400.0f, 175.0f, 1.5f, Color(0.7f, 0.8f, 0.75f, 0.9f));
-        Renderer::drawText("Then press PLAY HAND to score or DISCARD to draw new cards", 350.0f, 210.0f, 1.3f, Color(0.6f, 0.7f, 0.65f, 0.8f));
+        Renderer::drawCenteredText("SELECT 1 - 5 CARDS", 650.0f, 150.0f, 2.2f, Theme::TEXT_WHITE);
+        Renderer::drawCenteredText("Click cards below or press [1 - 8] on keyboard", 650.0f, 190.0f, 1.35f, Color(0.7f, 0.8f, 0.75f, 0.9f));
+        Renderer::drawCenteredText("Press PLAY HAND to score or DISCARD to draw new cards", 650.0f, 222.0f, 1.25f, Color(0.6f, 0.7f, 0.65f, 0.8f));
 
         const auto& last = engine.getLastScoreResult();
         if (last.finalScore > 0) {
             string lastStr = "Last Hand: " + last.handName + " scored " + to_string(last.finalScore) + " pts!";
-            Renderer::drawText(lastStr, 450.0f, 290.0f, 1.4f, Theme::GOLD);
+            Renderer::drawCenteredText(lastStr, 650.0f, 280.0f, 1.35f, Theme::GOLD);
         }
     }
 }
