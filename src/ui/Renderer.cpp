@@ -66,6 +66,64 @@ static const char* KING_PIXELS[16] = {
     "..BBBBBBBB...."
 };
 
+// 11x11 Pixel Art Bitmaps untuk 4 Simbol Kartu (Suits)
+// Simbol: . = transparan, X = piksel aktif berwarna
+static const char* SUIT_HEARTS[11] = {
+    ".XXX...XXX.",
+    "XXXXX.XXXXX",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    ".XXXXXXXXX.",
+    "..XXXXXXX..",
+    "...XXXXX...",
+    "....XXX....",
+    ".....X.....",
+    "..........."
+};
+
+static const char* SUIT_DIAMONDS[11] = {
+    ".....X.....",
+    "....XXX....",
+    "...XXXXX...",
+    "..XXXXXXX..",
+    ".XXXXXXXXX.",
+    "XXXXXXXXXXX",
+    ".XXXXXXXXX.",
+    "..XXXXXXX..",
+    "...XXXXX...",
+    "....XXX....",
+    ".....X....."
+};
+
+static const char* SUIT_SPADES[11] = {
+    ".....X.....",
+    "....XXX....",
+    "...XXXXX...",
+    "..XXXXXXX..",
+    ".XXXXXXXXX.",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    ".XXXX.XXXX.",
+    "..XX.X.XX..",
+    "....XXX....",
+    "...XXXXX..."
+};
+
+static const char* SUIT_CLUBS[11] = {
+    "....XXX....",
+    "...XXXXX...",
+    "...XXXXX...",
+    "....XXX....",
+    ".XXX...XXX.",
+    "XXXXX.XXXXX",
+    "XXXXXXXXXXX",
+    "XXXXXXXXXXX",
+    ".XXX.X.XXX.",
+    "....XXX....",
+    "...XXXXX..."
+};
+
 void Renderer::initGL(int windowWidth, int windowHeight) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -224,6 +282,34 @@ void Renderer::drawPixelArtGrid(float startX, float startY, float pixelSize,
     glEnd();
 }
 
+void Renderer::drawSuitIcon(Suit suit, float x, float y, float size, Color color) {
+    const char* const* map = nullptr;
+    switch (suit) {
+        case Suit::HEARTS:   map = SUIT_HEARTS; break;
+        case Suit::DIAMONDS: map = SUIT_DIAMONDS; break;
+        case Suit::SPADES:   map = SUIT_SPADES; break;
+        case Suit::CLUBS:    map = SUIT_CLUBS; break;
+    }
+    if (!map) return;
+
+    float pixelSize = size / 11.0f;
+    glColor4f(color.r, color.g, color.b, color.a);
+    glBegin(GL_QUADS);
+    for (int r = 0; r < 11; ++r) {
+        for (int c = 0; c < 11; ++c) {
+            if (map[r][c] == 'X') {
+                float px = x + c * pixelSize;
+                float py = y + r * pixelSize;
+                glVertex2f(px, py);
+                glVertex2f(px + pixelSize, py);
+                glVertex2f(px + pixelSize, py + pixelSize);
+                glVertex2f(px, py + pixelSize);
+            }
+        }
+    }
+    glEnd();
+}
+
 void Renderer::drawAceEmblem(float boxX, float boxY, float boxW, float boxH, Suit suit, bool debuffed) {
     Color suitCol = debuffed ? Theme::DEBUFF_GRAY : 
                     ((suit == Suit::HEARTS || suit == Suit::DIAMONDS) ? Theme::MULT_RED : Theme::TEXT_DARK);
@@ -249,10 +335,9 @@ void Renderer::drawAceEmblem(float boxX, float boxY, float boxW, float boxH, Sui
     drawRect(boxX + 6.0f, cy - 2.0f, 4.0f, 4.0f, goldCol);
     drawRect(boxX + boxW - 10.0f, cy - 2.0f, 4.0f, 4.0f, goldCol);
 
-    // Grand Suit Symbol in the Center
-    string sym = Card(suit, Rank::ACE).getSuitSymbol();
-    float symW = getTextWidth(sym, 3.0f);
-    drawText(sym, cx - symW * 0.5f, cy - 12.0f, 3.0f, suitCol);
+    // Grand Pixel Art Suit Icon di Tengah Ace
+    float iconSize = 34.0f;
+    drawSuitIcon(suit, cx - iconSize * 0.5f, cy - iconSize * 0.5f, iconSize, suitCol);
 }
 
 void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bool isHovered, float elevation) {
@@ -286,12 +371,13 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
         suitColor = Theme::TEXT_DARK;
     }
 
-    // 5. Pojok Kiri Atas
+    // 5. Pojok Kiri Atas: Rank & Pixel Art Suit Icon
     string rankStr = card.getRankString();
-    drawText(rankStr, x + 8.0f, renderY + 8.0f, 2.0f, suitColor);
-    
-    string suitStr = card.getSuitSymbol();
-    drawText(suitStr, x + 8.0f, renderY + 28.0f, 1.5f, suitColor);
+    drawText(rankStr, x + 8.0f, renderY + 7.0f, 2.0f, suitColor);
+    drawSuitIcon(card.getSuit(), x + 9.0f, renderY + 26.0f, 13.0f, suitColor);
+
+    // Pojok Kanan Atas: Mini Pixel Art Suit Icon
+    drawSuitIcon(card.getSuit(), x + w - 21.0f, renderY + 8.0f, 12.0f, suitColor);
 
     // 6. Area Tengah: Pixel Art Face Cards vs Grand Ace vs Number Cards
     Rank rank = card.getRank();
@@ -315,6 +401,9 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
         } else if (rank == Rank::KING) {
             drawPixelArtGrid(gridStartX, gridStartY, 3.0f, KING_PIXELS, 16, 14, card.getSuit(), card.isDebuffed());
         }
+
+        // Mini suit icon aksen di bawah potret kerajaan
+        drawSuitIcon(card.getSuit(), boxX + (boxW - 10.0f) * 0.5f, boxY + boxH - 12.0f, 10.0f, suitColor);
     } else if (rank == Rank::ACE) {
         float boxW = 54.0f;
         float boxH = 68.0f;
@@ -325,7 +414,7 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
         drawRectOutline(boxX, boxY, boxW, boxH, 1.5f, Color(0.78f, 0.72f, 0.55f));
         drawAceEmblem(boxX, boxY, boxW, boxH, card.getSuit(), card.isDebuffed());
     } else {
-        // Kartu Angka (2 - 10)
+        // Kartu Angka (2 - 10): Pixel Art Suit Icon Besar di Tengah
         float boxW = 46.0f;
         float boxH = 58.0f;
         float boxX = x + (w - boxW) * 0.5f;
@@ -334,8 +423,8 @@ void Renderer::drawCard(const Card& card, float x, float y, float w, float h, bo
         drawRect(boxX, boxY, boxW, boxH, Color(0.93f, 0.92f, 0.88f, 0.6f));
         drawRectOutline(boxX, boxY, boxW, boxH, 1.0f, Color(0.80f, 0.78f, 0.74f, 0.8f));
 
-        float symW = getTextWidth(suitStr, 2.6f);
-        drawText(suitStr, boxX + (boxW - symW) * 0.5f, boxY + (boxH - 20.0f) * 0.5f, 2.6f, suitColor);
+        float iconSize = 34.0f;
+        drawSuitIcon(card.getSuit(), boxX + (boxW - iconSize) * 0.5f, boxY + (boxH - iconSize) * 0.5f, iconSize, suitColor);
     }
 
     // 7. Base Chips Pojok Kanan Bawah
