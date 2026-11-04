@@ -27,6 +27,9 @@ public:
     virtual void rerollShop(GameEngine& /*engine*/);
     virtual void leaveShop(GameEngine& /*engine*/);
     virtual void toMainMenu(GameEngine& /*engine*/);
+    virtual void skipBlind(GameEngine& /*engine*/);
+    virtual void buyVoucher(GameEngine& /*engine*/);
+    virtual void rerollBoss(GameEngine& /*engine*/);
 };
 
 // 1. State Tampilan Awal / Menu Utama (Title Screen)
@@ -41,7 +44,9 @@ class BlindSelectState : public IGameState {
 public:
     string getStateName() const override { return "BLIND_SELECT"; }
     void selectBlind(GameEngine& engine) override;
+    void skipBlind(GameEngine& engine) override;
     void toMainMenu(GameEngine& engine) override;
+    void rerollBoss(GameEngine& engine) override;
 };
 
 // 3. State Pemain Sedang Memilih Kartu (Fase Aktif Ronde Permainan)
@@ -70,6 +75,7 @@ public:
     void sellJoker(GameEngine& engine, int jokerIndex) override;
     void rerollShop(GameEngine& engine) override;
     void leaveShop(GameEngine& engine) override;
+    void buyVoucher(GameEngine& engine) override;
 };
 
 // 6. State Kalah / Game Over

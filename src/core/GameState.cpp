@@ -49,6 +49,18 @@ void IGameState::toMainMenu(GameEngine& engine) {
     engine.changeState(make_unique<MainMenuState>());
 }
 
+void IGameState::skipBlind(GameEngine& /*engine*/) {
+    throw InvalidActionException("Skip Blind", "Cannot skip blind from state: " + getStateName());
+}
+
+void IGameState::buyVoucher(GameEngine& /*engine*/) {
+    throw InvalidActionException("Buy Voucher", "Cannot buy voucher from state: " + getStateName());
+}
+
+void IGameState::rerollBoss(GameEngine& /*engine*/) {
+    throw InvalidActionException("Reroll Boss", "Cannot reroll boss from state: " + getStateName());
+}
+
 // ================= 1. MainMenuState =================
 void MainMenuState::startNewRun(GameEngine& engine) {
     engine.executeStartNewRunLogic();
@@ -59,8 +71,16 @@ void BlindSelectState::selectBlind(GameEngine& engine) {
     engine.executeSelectBlindLogic();
 }
 
+void BlindSelectState::skipBlind(GameEngine& engine) {
+    engine.executeSkipBlindLogic();
+}
+
 void BlindSelectState::toMainMenu(GameEngine& engine) {
     engine.changeState(make_unique<MainMenuState>());
+}
+
+void BlindSelectState::rerollBoss(GameEngine& engine) {
+    engine.executeRerollBossLogic();
 }
 
 // ================= 3. SelectingCardState =================
@@ -87,7 +107,7 @@ void RoundWonState::cashOut(GameEngine& engine) {
 
 // ================= 5. ShopState =================
 void ShopState::onEnter(GameEngine& engine) {
-    engine.refreshShopInventory();
+    engine.onEnterShop();
 }
 
 void ShopState::buyJoker(GameEngine& engine, int shopIndex) {
@@ -104,6 +124,10 @@ void ShopState::rerollShop(GameEngine& engine) {
 
 void ShopState::leaveShop(GameEngine& engine) {
     engine.executeLeaveShopLogic();
+}
+
+void ShopState::buyVoucher(GameEngine& engine) {
+    engine.executeBuyVoucherLogic();
 }
 
 // ================= 6. GameOverState =================

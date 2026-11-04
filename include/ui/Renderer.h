@@ -1,16 +1,13 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include "Color.h"
 #include "../core/Card.h"
+#include "../core/Tag.h"
+#include "../core/Voucher.h"
 #include <string>
 
 using namespace std;
-
-struct Color {
-    float r, g, b, a;
-    Color(float red = 1.0f, float green = 1.0f, float blue = 1.0f, float alpha = 1.0f)
-        : r(red), g(green), b(blue), a(alpha) {}
-};
 
 namespace Theme {
     const Color BG_GREEN(0.10f, 0.22f, 0.18f);        // Felt Green Meja Casino
@@ -44,15 +41,24 @@ public:
     // Helper Tipografi
     static float getTextWidth(const string& text, float scale);
     static void drawCenteredText(const string& text, float centerX, float y, float scale, Color color);
+    static void drawWrappedCenteredText(const string& text, float centerX, float y, float maxWidth, float scale, float lineSpacing, Color color);
+    static void drawWrappedText(const string& text, float startX, float startY, float maxWidth, float scale, float lineSpacing, Color color);
 
     // Komponen Game Balatro
     static void drawCard(const Card& card, float x, float y, float w, float h, bool isHovered, float elevation = 0.0f);
-    static void drawJokerCard(const string& name, const string& desc, int cost, float x, float y, float w, float h, bool isHovered, float scale = 1.0f);
+    static void drawJokerCard(const string& name, const string& desc, int cost, float x, float y, float w, float h, bool isHovered, float scale = 1.0f, float glowIntensity = 0.0f);
+    static void drawVoucherCard(const Voucher& voucher, float x, float y, float w, float h, bool isHovered, float scale = 1.0f, bool isSoldOut = false);
     static void drawSuitIcon(Suit suit, float x, float y, float size, Color color);
     static void drawSuitIconInverted(Suit suit, float rightX, float bottomY, float size, Color color);
     static void drawButton(const string& text, float x, float y, float w, float h, 
                            Color bg, Color textCol, bool isHovered, bool isEnabled);
     static void drawToast(const string& message, float windowW, float windowH, float alpha);
+
+    // Dekorasi Menu & Casino Visuals
+    static void drawCasinoChip(float cx, float cy, float radius, Color baseCol, Color stripeCol, float angle);
+    static void drawCardBack(float x, float y, float w, float h, Color backColor);
+    static void drawGlowingAura(float x, float y, float w, float h, Color glowColor, float intensity);
+    static void drawTagIcon(TagType type, float cx, float cy, float size);
 
 private:
     static void drawPixelArtGrid(float startX, float startY, float pixelSize,

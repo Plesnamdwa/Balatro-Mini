@@ -1,0 +1,9 @@
+{
+  "files.associations": {
+    "*.h": "cpp"
+  },
+  "C_Cpp.default.cppStandard": "c++17",
+  "C_Cpp.default.cStandard": "c17",
+  "C_Cpp.default.intelliSenseMode": "windows-gcc-x64",
+  "C_Cpp.default.compilerPath": "C:/VSCode/Runner/MinGW/bin/g++.exe"
+}
